@@ -1,0 +1,25 @@
+services:
+  jarvis-front:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jarvis-front
+    restart: always
+    ports:
+      - "3080:3080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - NODE_ENV=production
+      - PORT=3080
+      - JARVIS_FLASK_API_URL=http://31.97.145.8:5000/api/chat
+      - SUPABASE_INTERNAL_URL=http://supabase-kong:8000
+    networks:
+      - default
+      - supabase_default
+
+networks:
+  default:
+    name: jarvis-platform_default
+  supabase_default:
+    external: true

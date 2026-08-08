@@ -1,0 +1,204 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { Zap, Key, Server, Cpu, CheckCircle2, ShieldAlert } from "lucide-react";
+import { LLMProvider } from "@/lib/jarvisApi";
+
+interface ProviderSelectorProps {
+  currentProvider: LLMProvider;
+  onSelectProvider: (provider: LLMProvider, key?: string) => void;
+}
+
+export default function ProviderSelector({
+  currentProvider,
+  onSelectProvider,
+}: ProviderSelectorProps) {
+  const [groqKey, setGroqKey] = useState("");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [geminiKey, setGeminiKey] = useState("");
+  const [showKeyInput, setShowKeyInput] = useState(false);
+
+  useEffect(() => {
+    // Cargar keys guardadas en localStorage (cifrado local)
+    setGroqKey(localStorage.getItem("jarvis_groq_key") || "");
+    setOpenaiKey(localStorage.getItem("jarvis_openai_key") || "");
+    setGeminiKey(localStorage.getItem("jarvis_gemini_key") || "");
+  }, []);
+
+  const handleSaveKey = (provider: LLMProvider, value: string) => {
+    if (provider === "groq") {
+      setGroqKey(value);
+      localStorage.setItem("jarvis_groq_key", value);
+      onSelectProvider("groq", value);
+    } else if (provider === "openai") {
+      setOpenaiKey(value);
+      localStorage.setItem("jarvis_openai_key", value);
+      onSelectProvider("openai", value);
+    } else if (provider === "gemini") {
+      setGeminiKey(value);
+      localStorage.setItem("jarvis_gemini_key", value);
+      onSelectProvider("gemini", value);
+    }
+  };
+
+  const getActiveKey = (p: LLMProvider) => {
+    if (p === "groq") return groqKey;
+    if (p === "openai") return openaiKey;
+    if (p === "gemini") return geminiKey;
+    return "";
+  };
+
+  return (
+    <div className="bg-[#0b1021]/90 backdrop-blur-xl border border-cyan-900/40 rounded-2xl p-4 shadow-xl">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+            Motor de Inteligencia & Cascadas Híbridas
+          </h3>
+        </div>
+        <button
+          onClick={() => setShowKeyInput(!showKeyInput)}
+          className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
+        >
+          <Key className="w-3 h-3" />
+          <span>{showKeyInput ? "Ocultar Keys" : "Configurar API Keys"}</span>
+        </button>
+      </div>
+
+      {/* Grid de Proveedores */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {/* GROQ */}
+        <button
+          onClick={() => {
+            onSelectProvider("groq", groqKey);
+          }}
+          className={`p-2.5 rounded-xl border text-left transition-all ${
+            currentProvider === "groq"
+              ? "bg-cyan-950/60 border-cyan-500 text-white shadow-lg shadow-cyan-500/10"
+              : "bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-bold text-cyan-400">Groq API</span>
+            <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded font-mono">
+              0% RAM VPS
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-400 line-clamp-1">Llama 3.3 70B Ultra Rápido</p>
+        </button>
+
+        {/* OPENAI */}
+        <button
+          onClick={() => {
+            onSelectProvider("openai", openaiKey);
+          }}
+          className={`p-2.5 rounded-xl border text-left transition-all ${
+            currentProvider === "openai"
+              ? "bg-blue-950/60 border-blue-500 text-white shadow-lg shadow-blue-500/10"
+              : "bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-bold text-blue-400">OpenAI</span>
+            <span className="text-[9px] bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded font-mono">
+              Cloud
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-400 line-clamp-1">GPT-4o / GPT-4o-mini</p>
+        </button>
+
+        {/* GEMINI */}
+        <button
+          onClick={() => {
+            onSelectProvider("gemini", geminiKey);
+          }}
+          className={`p-2.5 rounded-xl border text-left transition-all ${
+            currentProvider === "gemini"
+              ? "bg-indigo-950/60 border-indigo-500 text-white shadow-lg shadow-indigo-500/10"
+              : "bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-bold text-indigo-400">Gemini</span>
+            <span className="text-[9px] bg-indigo-950 text-indigo-300 px-1.5 py-0.5 rounded font-mono">
+              Cloud
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-400 line-clamp-1">Gemini 1.5 Flash / Pro</p>
+        </button>
+
+        {/* LOCAL LLAMA 3.1 */}
+        <button
+          onClick={() => {
+            onSelectProvider("local");
+          }}
+          className={`p-2.5 rounded-xl border text-left transition-all ${
+            currentProvider === "local"
+              ? "bg-purple-950/60 border-purple-500 text-white shadow-lg shadow-purple-500/10"
+              : "bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-bold text-purple-400">Llama 3.1</span>
+            <span className="text-[9px] bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded font-mono">
+              VPS :5000
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-400 line-clamp-1">Motor Embebido Respaldo</p>
+        </button>
+      </div>
+
+      {/* Input de API Keys desplegable */}
+      {showKeyInput && (
+        <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-2 animate-fadeIn">
+          <div className="flex items-center gap-2 text-[11px] text-slate-300 mb-1 font-mono">
+            <Key className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Configurar API Keys (Almacenamiento Local Cifrado):</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <label className="text-[10px] text-cyan-400 font-semibold uppercase block mb-1">
+                Groq API Key
+              </label>
+              <input
+                type="password"
+                placeholder="gsk_..."
+                value={groqKey}
+                onChange={(e) => handleSaveKey("groq", e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] text-blue-400 font-semibold uppercase block mb-1">
+                OpenAI Key
+              </label>
+              <input
+                type="password"
+                placeholder="sk-..."
+                value={openaiKey}
+                onChange={(e) => handleSaveKey("openai", e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] text-indigo-400 font-semibold uppercase block mb-1">
+                Gemini API Key
+              </label>
+              <input
+                type="password"
+                placeholder="AIzaSy..."
+                value={geminiKey}
+                onChange={(e) => handleSaveKey("gemini", e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
