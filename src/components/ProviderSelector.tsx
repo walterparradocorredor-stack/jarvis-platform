@@ -19,25 +19,41 @@ export default function ProviderSelector({
   const [showKeyInput, setShowKeyInput] = useState(false);
 
   useEffect(() => {
-    // Cargar keys guardadas en localStorage (cifrado local)
-    setGroqKey(localStorage.getItem("jarvis_groq_key") || "");
-    setOpenaiKey(localStorage.getItem("jarvis_openai_key") || "");
-    setGeminiKey(localStorage.getItem("jarvis_gemini_key") || "");
+    const savedGroq = localStorage.getItem("jarvis_groq_key") || "";
+    const savedOpenAI = localStorage.getItem("jarvis_openai_key") || "";
+    const savedGemini = localStorage.getItem("jarvis_gemini_key") || "";
+    setGroqKey(savedGroq);
+    setOpenaiKey(savedOpenAI);
+    setGeminiKey(savedGemini);
+
+    const savedProvider = localStorage.getItem("jarvis_active_provider") as LLMProvider;
+    if (savedProvider) {
+      let key = "";
+      if (savedProvider === "groq") key = savedGroq;
+      if (savedProvider === "openai") key = savedOpenAI;
+      if (savedProvider === "gemini") key = savedGemini;
+      onSelectProvider(savedProvider, key);
+    }
   }, []);
+
+  const handleSelect = (p: LLMProvider) => {
+    localStorage.setItem("jarvis_active_provider", p);
+    onSelectProvider(p, getActiveKey(p));
+  };
 
   const handleSaveKey = (provider: LLMProvider, value: string) => {
     if (provider === "groq") {
       setGroqKey(value);
       localStorage.setItem("jarvis_groq_key", value);
-      onSelectProvider("groq", value);
+      handleSelect("groq");
     } else if (provider === "openai") {
       setOpenaiKey(value);
       localStorage.setItem("jarvis_openai_key", value);
-      onSelectProvider("openai", value);
+      handleSelect("openai");
     } else if (provider === "gemini") {
       setGeminiKey(value);
       localStorage.setItem("jarvis_gemini_key", value);
-      onSelectProvider("gemini", value);
+      handleSelect("gemini");
     }
   };
 
@@ -70,9 +86,7 @@ export default function ProviderSelector({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {/* GROQ */}
         <button
-          onClick={() => {
-            onSelectProvider("groq", groqKey);
-          }}
+          onClick={() => handleSelect("groq")}
           className={`p-2.5 rounded-xl border text-left transition-all ${
             currentProvider === "groq"
               ? "bg-cyan-950/60 border-cyan-500 text-white shadow-lg shadow-cyan-500/10"
@@ -90,9 +104,7 @@ export default function ProviderSelector({
 
         {/* OPENAI */}
         <button
-          onClick={() => {
-            onSelectProvider("openai", openaiKey);
-          }}
+          onClick={() => handleSelect("openai")}
           className={`p-2.5 rounded-xl border text-left transition-all ${
             currentProvider === "openai"
               ? "bg-blue-950/60 border-blue-500 text-white shadow-lg shadow-blue-500/10"
@@ -110,9 +122,7 @@ export default function ProviderSelector({
 
         {/* GEMINI */}
         <button
-          onClick={() => {
-            onSelectProvider("gemini", geminiKey);
-          }}
+          onClick={() => handleSelect("gemini")}
           className={`p-2.5 rounded-xl border text-left transition-all ${
             currentProvider === "gemini"
               ? "bg-indigo-950/60 border-indigo-500 text-white shadow-lg shadow-indigo-500/10"
@@ -130,9 +140,7 @@ export default function ProviderSelector({
 
         {/* LOCAL LLAMA 3.1 */}
         <button
-          onClick={() => {
-            onSelectProvider("local");
-          }}
+          onClick={() => handleSelect("local")}
           className={`p-2.5 rounded-xl border text-left transition-all ${
             currentProvider === "local"
               ? "bg-purple-950/60 border-purple-500 text-white shadow-lg shadow-purple-500/10"
