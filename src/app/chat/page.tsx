@@ -1,12 +1,33 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import ChatInterface from "@/components/ChatInterface";
 import { LLMProvider } from "@/lib/jarvisApi";
+import { supabase } from "@/lib/supabase";
 
 export default function ClientChatPage() {
-  const [provider] = useState<LLMProvider>("local");
+  const [provider, setProvider] = useState<LLMProvider>("groq");
+  const [apiKey, setApiKey] = useState<string>("");
+
+  useEffect(() => {
+    supabase
+      .from("cms_content")
+      .select("content")
+      .eq("id", "jarvis_config")
+      .single()
+      .then(({ data }) => {
+        if (data?.content) {
+          const c = data.content;
+          if (c.activeProvider) {
+            setProvider(c.activeProvider as LLMProvider);
+          }
+          if (c.groqKey && c.activeProvider === "groq") setApiKey(c.groqKey);
+          if (c.openaiKey && c.activeProvider === "openai") setApiKey(c.openaiKey);
+          if (c.geminiKey && c.activeProvider === "gemini") setApiKey(c.geminiKey);
+        }
+      });
+  }, []);
 
   return (
     <div className="flex flex-col h-screen bg-[#050811] overflow-hidden">
@@ -15,7 +36,7 @@ export default function ClientChatPage() {
 
       {/* Vista limpia inmersiva de Chat (Estilo ChatGPT) */}
       <main className="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden">
-        <ChatInterface currentProvider={provider} isOperatorView={false} />
+        <ChatInterface currentProvider={provider} activeApiKey={apiKey} isOperatorView={false} />
       </main>
     </div>
   );
