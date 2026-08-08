@@ -6,7 +6,7 @@ import ChatInterface from "@/components/ChatInterface";
 import { LLMProvider } from "@/lib/jarvisApi";
 
 export default function ClientChatPage() {
-  const [provider] = useState<LLMProvider>("groq");
+  const [provider] = useState<LLMProvider>("local");
 
   return (
     <div className="flex flex-col h-screen bg-[#050811] overflow-hidden">

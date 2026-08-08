@@ -21,7 +21,7 @@ export default function ChatInterface({
       sender: "jarvis",
       content:
         "¡Hola! Soy **JARVIS**, la Inteligencia Artificial Corporativa de **JyM Tech Solutions**. ¿En qué puedo colaborarle el día de hoy?",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: "08:00 AM",
       provider: currentProvider,
     },
   ]);
