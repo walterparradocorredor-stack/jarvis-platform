@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Zap, Key, Server, Cpu, CheckCircle2, ShieldAlert } from "lucide-react";
 import { LLMProvider } from "@/lib/jarvisApi";
+import { supabase } from "@/lib/supabase";
 
 interface ProviderSelectorProps {
   currentProvider: LLMProvider;
@@ -19,6 +20,7 @@ export default function ProviderSelector({
   const [showKeyInput, setShowKeyInput] = useState(false);
 
   useEffect(() => {
+    // 1. Cargar respaldos de localStorage primero
     const savedGroq = localStorage.getItem("jarvis_groq_key") || "";
     const savedOpenAI = localStorage.getItem("jarvis_openai_key") || "";
     const savedGemini = localStorage.getItem("jarvis_gemini_key") || "";
@@ -28,40 +30,93 @@ export default function ProviderSelector({
 
     const savedProvider = localStorage.getItem("jarvis_active_provider") as LLMProvider;
     if (savedProvider) {
-      let key = "";
-      if (savedProvider === "groq") key = savedGroq;
-      if (savedProvider === "openai") key = savedOpenAI;
-      if (savedProvider === "gemini") key = savedGemini;
-      onSelectProvider(savedProvider, key);
+      onSelectProvider(savedProvider);
     }
+
+    // 2. Cargar configuraciones centrales desde la base de datos Supabase del VPS
+    supabase
+      .from("cms_content")
+      .select("content")
+      .eq("id", "jarvis_config")
+      .single()
+      .then(({ data }) => {
+        if (data?.content) {
+          const c = data.content;
+          if (c.groqKey) setGroqKey(c.groqKey);
+          if (c.openaiKey) setOpenaiKey(c.openaiKey);
+          if (c.geminiKey) setGeminiKey(c.geminiKey);
+
+          if (c.activeProvider) {
+            let key = "";
+            if (c.activeProvider === "groq") key = c.groqKey || savedGroq;
+            if (c.activeProvider === "openai") key = c.openaiKey || savedOpenAI;
+            if (c.activeProvider === "gemini") key = c.geminiKey || savedGemini;
+            onSelectProvider(c.activeProvider as LLMProvider, key);
+          }
+        }
+      });
   }, []);
-
-  const handleSelect = (p: LLMProvider) => {
-    localStorage.setItem("jarvis_active_provider", p);
-    onSelectProvider(p, getActiveKey(p));
-  };
-
-  const handleSaveKey = (provider: LLMProvider, value: string) => {
-    if (provider === "groq") {
-      setGroqKey(value);
-      localStorage.setItem("jarvis_groq_key", value);
-      handleSelect("groq");
-    } else if (provider === "openai") {
-      setOpenaiKey(value);
-      localStorage.setItem("jarvis_openai_key", value);
-      handleSelect("openai");
-    } else if (provider === "gemini") {
-      setGeminiKey(value);
-      localStorage.setItem("jarvis_gemini_key", value);
-      handleSelect("gemini");
-    }
-  };
 
   const getActiveKey = (p: LLMProvider) => {
     if (p === "groq") return groqKey;
     if (p === "openai") return openaiKey;
     if (p === "gemini") return geminiKey;
     return "";
+  };
+
+  const handleSelect = (p: LLMProvider) => {
+    localStorage.setItem("jarvis_active_provider", p);
+    onSelectProvider(p, getActiveKey(p));
+
+    // Guardar selección centralizada en la BD Supabase del VPS
+    supabase
+      .from("cms_content")
+      .update({
+        content: {
+          activeProvider: p,
+          groqKey,
+          openaiKey,
+          geminiKey,
+        },
+      })
+      .eq("id", "jarvis_config")
+      .then();
+  };
+
+  const handleSaveKey = (provider: LLMProvider, value: string) => {
+    let newGroq = groqKey;
+    let newOpenAI = openaiKey;
+    let newGemini = geminiKey;
+
+    if (provider === "groq") {
+      newGroq = value;
+      setGroqKey(value);
+      localStorage.setItem("jarvis_groq_key", value);
+    } else if (provider === "openai") {
+      newOpenAI = value;
+      setOpenaiKey(value);
+      localStorage.setItem("jarvis_openai_key", value);
+    } else if (provider === "gemini") {
+      newGemini = value;
+      setGeminiKey(value);
+      localStorage.setItem("jarvis_gemini_key", value);
+    }
+
+    // Persistir todo centralizado en Supabase BD
+    supabase
+      .from("cms_content")
+      .update({
+        content: {
+          activeProvider: provider,
+          groqKey: newGroq,
+          openaiKey: newOpenAI,
+          geminiKey: newGemini,
+        },
+      })
+      .eq("id", "jarvis_config")
+      .then();
+
+    handleSelect(provider);
   };
 
   return (
@@ -162,7 +217,7 @@ export default function ProviderSelector({
         <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-2 animate-fadeIn">
           <div className="flex items-center gap-2 text-[11px] text-slate-300 mb-1 font-mono">
             <Key className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Configurar API Keys (Almacenamiento Local Cifrado):</span>
+            <span>Configurar API Keys (Sincronizado con Supabase BD VPS):</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
