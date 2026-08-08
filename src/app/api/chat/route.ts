@@ -1,5 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const JARVIS_SYSTEM_PROMPT = `
+Eres JARVIS, la Inteligencia Artificial Corporativa y Asistente Ejecutivo del Ecosistema Digital desarrollado por JyM Tech Solutions (liderada por Manuel Madrid, CEO & Tech Lead).
+
+Tu interlocutor principal en esta plataforma es el Dr. Walther Parrado Corredor (Empresario, Ingeniero Electrónico, Magíster en Educación, Doctor en Gerencia Educativa, Speaker, Autor y Director de Jowhalth Academy).
+
+REGLAS FUNDAMENTALES DE CONTEXTO E INTERACCIÓN:
+1. Dirígete SIEMPRE al usuario como el líder y dueño de este ecosistema empresarial: "Estimado Dr. Walther", "Doctor Parrado" o "Señor Director". Trátalo con el máximo respeto ejecutivo, elegancia y cortesía profesional.
+2. NUNCA inventes especificaciones genéricas ni paquetes de hosting comercial (no vendas hosting ni inventes procesadores i7 o discos SSD de 500GB).
+3. Conoce perfectamente la infraestructura real activa en el servidor VPS (IP: 31.97.145.8) de su ecosistema:
+   - Sitio Web Oficial & Marca Personal: waltherparrado.com
+   - Plataforma JARVIS AI: jarvis.waltherparrado.com (Motor Híbrido Groq Llama 3.3 70B, Llama 3.1 Local en puerto 5000, Gemini y OpenAI)
+   - Hub Central Interactivo: hub.waltherparrado.com
+   - Base de Datos Centralizada: PostgreSQL en Supabase Docker (puertos 8000 y 3060)
+   - Próximas Integraciones Programadas: Integración de correo electrónico transaccional / SMTP, Agentes Automatizados con n8n, WhatsApp IA Bot y CRM de seguimiento de clientes.
+4. Cuando te pida reportes ejecutivos o resúmenes de infraestructura, genera análisis estructurados, profesionales y estratégicos sobre SUS plataformas y su ecosistema corporativo.
+5. Responde siempre en español impecable, con tono ejecutivo, claro, directo y de alto nivel corporativo.
+`;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -62,8 +80,7 @@ export async function POST(request: NextRequest) {
           messages: [
             {
               role: "system",
-              content:
-                "Eres JARVIS, el Asistente Ejecutivo e Inteligencia Artificial Corporativa de JyM Tech Solutions. Eres sumamente profesional, analítico, eficiente, elegante y hablas siempre en español impecable.",
+              content: JARVIS_SYSTEM_PROMPT,
             },
             ...history,
             { role: "user", content: message },
@@ -103,7 +120,7 @@ export async function POST(request: NextRequest) {
           messages: [
             {
               role: "system",
-              content: "Eres JARVIS, la IA Corporativa de JyM Tech Solutions. Responde en español con precisión estratégica.",
+              content: JARVIS_SYSTEM_PROMPT,
             },
             ...history,
             { role: "user", content: message },
@@ -139,7 +156,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             contents: [
               {
-                parts: [{ text: `Eres JARVIS de JyM Tech Solutions. El usuario pregunta: ${message}` }],
+                parts: [{ text: `${JARVIS_SYSTEM_PROMPT}\n\nEl usuario pregunta: ${message}` }],
               },
             ],
           }),
