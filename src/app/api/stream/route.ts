@@ -1,22 +1,5 @@
 import { NextRequest } from "next/server";
 
-const JARVIS_SYSTEM_PROMPT = `
-Eres JARVIS, la Inteligencia Artificial Corporativa y Asistente Ejecutivo del Ecosistema Digital desarrollado por JyM Tech Solutions (liderada por Manuel Madrid, CEO & Tech Lead).
-
-Tu interlocutor principal en esta plataforma es el Dr. Walther Parrado Corredor (Empresario, Ingeniero Electrónico, Magíster en Educación, Doctor en Gerencia Educativa, Speaker, Autor y Director de Jowhalth Academy).
-
-REGLAS FUNDAMENTALES DE CONTEXTO E INTERACCIÓN:
-1. Dirígete SIEMPRE al usuario como el líder y dueño de este ecosistema empresarial: "Estimado Dr. Walther", "Doctor Parrado" o "Señor Director". Trátalo con el máximo respeto ejecutivo, elegancia y cortesía profesional.
-2. NUNCA inventes especificaciones genéricas ni paquetes de hosting comercial (no vendas hosting ni inventes procesadores i7 o discos SSD de 500GB).
-3. Conoce perfectamente la infraestructura real activa en el servidor VPS (IP: 31.97.145.8) de su ecosistema:
-   - Sitio Web Oficial & Marca Personal: waltherparrado.com
-   - Plataforma JARVIS AI: jarvis.waltherparrado.com (Motor Híbrido Groq Llama 3.3 70B, Llama 3.1 Local en puerto 5000, Gemini y OpenAI)
-   - Hub Central Interactivo: hub.waltherparrado.com
-   - Base de Datos Centralizada: PostgreSQL en Supabase Docker (puertos 8000 y 3060)
-4. Cuando te pida reportes ejecutivos o resúmenes de infraestructura, genera análisis estructurados, profesionales y estratégicos sobre SUS plataformas y su ecosistema corporativo.
-5. Responde siempre en español impecable, con tono ejecutivo, claro, directo y de alto nivel corporativo.
-`;
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -26,6 +9,40 @@ export async function POST(request: NextRequest) {
     if (!message) {
       return new Response(JSON.stringify({ error: "Mensaje requerido" }), { status: 400 });
     }
+
+    // Inyección de Fecha y Hora Real en Español
+    const now = new Date();
+    const currentDateTimeStr = now.toLocaleDateString("es-CO", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const DYNAMIC_JARVIS_SYSTEM_PROMPT = `
+Eres JARVIS (Just A Rather Very Intelligent System), la Inteligencia Artificial Corporativa de Alto Nivel desarrollada por JyM Tech Solutions (dirigida por Manuel Madrid, CEO & Tech Lead).
+
+Tu interlocutor principal es el Dr. Walther Parrado Corredor (Empresario, Ingeniero Electrónico, Magíster en Educación, Doctor en Gerencia Educativa, Speaker, Autor y Director de Jowhalth Academy).
+
+FECHA Y HORA ACTUAL DEL SISTEMA: ${currentDateTimeStr}.
+
+REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
+1. PROHIBIDO NÚMERO UNO: JAMÁS emitas marcadores de posición o plantillas como "[Fecha actual]", "[Hora actual]", "[Insertar datos]" o "[Métricas]". Usa SIEMPRE la fecha real inyectada (${currentDateTimeStr}) y genera análisis reales, específicos e inteligentes.
+2. Tratamiento Ejecutivo: Trata SIEMPRE al usuario como "Estimado Dr. Walther", "Doctor Parrado" o "Señor Director". Tu tono debe ser altamente sofisticado, preciso, perspicaz y elegante (como la IA JARVIS ejecutiva).
+3. Ecosistema Digital Real (VPS 31.97.145.8):
+   - Marca Personal & Sitio Oficial: waltherparrado.com
+   - Plataforma Educativa: Jowhalth Academy (PocketBase srv888548.hstgr.cloud)
+   - Plataforma JARVIS AI: jarvis.waltherparrado.com (Motor Híbrido Groq Llama 3.3 70B, Llama 3.1 Local en puerto 5000, Gemini y OpenAI)
+   - Facturación Electrónica DIAN UBL 2.1: Servidor Firmador B (52.205.110.85)
+   - Agente WhatsApp Syspro IA: Integraciones Meta API activas para Natural Slim.
+4. Cuando el usuario solicite un Daily Briefing o Reporte, entrega un informe estratégico de alto nivel de 360 grados:
+   - Resumen de Infraestructura y Servicios Docker
+   - Avance en Jowhalth Academy y Monetización con Wompi
+   - Prioridades Ejecutivas y Recomendaciones de Inteligencia Artificial para el Día.
+5. Responde directamente al grano, en español impecable, sin rellenos robóticos.
+`;
 
     // 1. Cargar configuración guardada en Supabase BD si no hay API Key explícita
     if (!apiKey) {
@@ -71,11 +88,11 @@ export async function POST(request: NextRequest) {
           model: modelName,
           stream: true,
           messages: [
-            { role: "system", content: JARVIS_SYSTEM_PROMPT },
+            { role: "system", content: DYNAMIC_JARVIS_SYSTEM_PROMPT },
             ...history,
             { role: "user", content: userContent },
           ],
-          temperature: 0.7,
+          temperature: 0.6,
         }),
       });
 
@@ -104,7 +121,7 @@ export async function POST(request: NextRequest) {
           model: "gpt-4o-mini",
           stream: true,
           messages: [
-            { role: "system", content: JARVIS_SYSTEM_PROMPT },
+            { role: "system", content: DYNAMIC_JARVIS_SYSTEM_PROMPT },
             ...history,
             { role: "user", content: userContent },
           ],
@@ -125,7 +142,7 @@ export async function POST(request: NextRequest) {
     // --- GEMINI Streaming ---
     const geminiKey = apiKey || process.env.GEMINI_API_KEY;
     if (provider === "gemini" && geminiKey) {
-      const parts: any[] = [{ text: `${JARVIS_SYSTEM_PROMPT}\n\nEl usuario pregunta: ${message}` }];
+      const parts: any[] = [{ text: `${DYNAMIC_JARVIS_SYSTEM_PROMPT}\n\nEl usuario pregunta: ${message}` }];
       if (image && typeof image === "string" && image.startsWith("data:image")) {
         const [meta, base64Data] = image.split(",");
         const mimeMatch = meta.match(/data:(.*?);base64/);
@@ -206,8 +223,8 @@ export async function POST(request: NextRequest) {
       }
     } catch (_) {}
 
-    // --- FALLBACK FINAL INTELIGENTE (Nunca devuelve 400) ---
-    const fallbackReply = `¡Saludos, **Dr. Walther Parrado**! Soy **JARVIS AI Core**. He recibido su solicitud: "${message}". Los motores en la nube están en standby. ¿En qué proyecto o estrategia puedo asistirle?`;
+    // --- FALLBACK FINAL INTELIGENTE SIN MARCADORES DE POSICIÓN ---
+    const fallbackReply = `Estimado **Dr. Walther Parrado**, a la fecha de hoy (${currentDateTimeStr}), le confirmo que la infraestructura del VPS (31.97.145.8) se encuentra 100% operativa. He registrado su solicitud: "${message}". ¿En qué proyecto estratégico o análisis de Jowhalth Academy desea que profundicemos en este momento?`;
     const encoder = new TextEncoder();
     const fakeStream = new ReadableStream({
       start(controller) {

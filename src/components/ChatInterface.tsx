@@ -11,6 +11,7 @@ import SlashCommandMenu, { SlashCommand } from "@/components/SlashCommandMenu";
 import MemoryManagerModal from "@/components/MemoryManagerModal";
 import AgentHubModal from "@/components/AgentHubModal";
 import DevOpsConsoleModal from "@/components/DevOpsConsoleModal";
+import MarkdownRenderer from "@/components/MarkdownRenderer";
 
 interface ChatInterfaceProps {
   currentProvider?: LLMProvider;
@@ -414,7 +415,7 @@ export default function ChatInterface({
                   </div>
                 )}
 
-                {msg.content}
+                <MarkdownRenderer content={msg.content} />
 
                 {streamingId === msg.id && (
                   <span className="inline-block w-0.5 h-4 bg-cyan-400 ml-0.5 animate-pulse align-middle" />
