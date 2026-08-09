@@ -20,8 +20,9 @@ export default function VoiceModule({
   const [speechSupported, setSpeechSupported] = useState(true);
   const [micPermissionError, setMicPermissionError] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const wantListeningRef = useRef<boolean>(false);
 
-  // Inicializar Speech Recognition nativo con soporte mejorado
+  // Inicializar Speech Recognition nativo con auto-reanudación transparente ante silencios (no-speech)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition =
@@ -29,7 +30,7 @@ export default function VoiceModule({
 
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = "es-CO";
 
@@ -43,20 +44,44 @@ export default function VoiceModule({
 
           if (finalTranscript.trim()) {
             onSpeechResult(finalTranscript.trim());
+            wantListeningRef.current = false;
             setIsListening(false);
+            try {
+              recognition.stop();
+            } catch (_) {}
           }
         };
 
         recognition.onerror = (event: any) => {
-          console.error("Error en reconocimiento de voz:", event.error);
-          setIsListening(false);
+          if (event.error === "no-speech") {
+            // Reanudación transparente ante tiempos de silencio en Chrome
+            if (wantListeningRef.current) {
+              setTimeout(() => {
+                try {
+                  recognition.start();
+                } catch (_) {}
+              }, 200);
+              return;
+            }
+          }
+
           if (event.error === "not-allowed" || event.error === "permission-denied") {
             setMicPermissionError(true);
           }
+          wantListeningRef.current = false;
+          setIsListening(false);
         };
 
         recognition.onend = () => {
-          setIsListening(false);
+          if (wantListeningRef.current) {
+            try {
+              recognition.start();
+            } catch (_) {
+              setIsListening(false);
+            }
+          } else {
+            setIsListening(false);
+          }
         };
 
         recognitionRef.current = recognition;
@@ -93,12 +118,13 @@ export default function VoiceModule({
     if (!speechSupported || !recognitionRef.current) return;
 
     if (isListening) {
+      wantListeningRef.current = false;
       recognitionRef.current.stop();
       setIsListening(false);
     } else {
       setMicPermissionError(false);
+      wantListeningRef.current = true;
       try {
-        // Solicitar explícitamente el permiso del micrófono al navegador
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
           await navigator.mediaDevices.getUserMedia({ audio: true });
         }
@@ -107,6 +133,7 @@ export default function VoiceModule({
       } catch (err) {
         console.error("Permiso de micrófono denegado:", err);
         setMicPermissionError(true);
+        wantListeningRef.current = false;
         setIsListening(false);
       }
     }
@@ -151,7 +178,7 @@ export default function VoiceModule({
         ) : micPermissionError ? (
           <>
             <MicOff className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline text-amber-300">Permiso Mic Requerido</span>
+            <span className="hidden sm:inline">Permiso Mic Requerido</span>
           </>
         ) : (
           <>
