@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       console.warn("Could not fetch jarvis_config from Supabase DB:", dbErr);
     }
 
-    // 1. PROVIDER: Groq API (Ultra-rápido Llama 3.3 70B - 0% RAM VPS)
+    // 1. PROVIDER: Groq API (Ultra-rápido Llama 3.3 70B / Vision)
     if (provider === "groq") {
       const groqKey = apiKey || process.env.GROQ_API_KEY;
       if (!groqKey) {
@@ -69,6 +69,16 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const { image } = body;
+      const modelName = image ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
+
+      const userContent = image
+        ? [
+            { type: "text", text: message },
+            { type: "image_url", image_url: { url: image } },
+          ]
+        : message;
+
       const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -76,14 +86,14 @@ export async function POST(request: NextRequest) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: modelName,
           messages: [
             {
               role: "system",
               content: JARVIS_SYSTEM_PROMPT,
             },
             ...history,
-            { role: "user", content: message },
+            { role: "user", content: userContent },
           ],
           temperature: 0.7,
         }),
@@ -109,6 +119,14 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const { image } = body;
+      const userContent = image
+        ? [
+            { type: "text", text: message },
+            { type: "image_url", image_url: { url: image } },
+          ]
+        : message;
+
       const oaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -123,7 +141,7 @@ export async function POST(request: NextRequest) {
               content: JARVIS_SYSTEM_PROMPT,
             },
             ...history,
-            { role: "user", content: message },
+            { role: "user", content: userContent },
           ],
         }),
       });
@@ -148,6 +166,21 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const { image } = body;
+      const parts: any[] = [{ text: `${JARVIS_SYSTEM_PROMPT}\n\nEl usuario pregunta: ${message}` }];
+
+      if (image && typeof image === "string" && image.startsWith("data:image")) {
+        const [meta, base64Data] = image.split(",");
+        const mimeMatch = meta.match(/data:(.*?);base64/);
+        const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
+        parts.push({
+          inlineData: {
+            mimeType,
+            data: base64Data,
+          },
+        });
+      }
+
       const geminiRes = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
         {
@@ -156,7 +189,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             contents: [
               {
-                parts: [{ text: `${JARVIS_SYSTEM_PROMPT}\n\nEl usuario pregunta: ${message}` }],
+                parts,
               },
             ],
           }),

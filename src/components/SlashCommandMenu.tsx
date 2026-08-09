@@ -1,0 +1,174 @@
+"use client";
+
+import React, { useEffect, useRef } from "react";
+import {
+  BarChart3,
+  Server,
+  MessageSquare,
+  Plus,
+  Download,
+  Image as ImageIcon,
+  Mic,
+  Zap,
+  Terminal,
+} from "lucide-react";
+
+export interface SlashCommand {
+  command: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  prompt?: string;
+  action?: "clear" | "export" | "image" | "voice";
+}
+
+const COMMANDS: SlashCommand[] = [
+  {
+    command: "/reporte",
+    label: "Reporte Ejecutivo",
+    description: "Genera reporte integral del Ecosistema Digital de Walther Parrado",
+    icon: <BarChart3 className="w-4 h-4 text-cyan-400" />,
+    prompt: "Generar un reporte ejecutivo integral del Ecosistema Digital y la plataforma Jowhalth Academy para el Dr. Walther Parrado. Incluir estado de proyectos, KPIs y próximos pasos estratégicos.",
+  },
+  {
+    command: "/infra",
+    label: "Estado de Infraestructura",
+    description: "Resumen del VPS 31.97.145.8 y plataformas en producción",
+    icon: <Server className="w-4 h-4 text-blue-400" />,
+    prompt: "Proporcionar un resumen ejecutivo completo de la infraestructura activa del VPS 31.97.145.8: servicios Docker en ejecución, estado del Flask AI Engine :5000, Supabase :8000, Nginx Proxy Manager :81 y JARVIS Platform :3080.",
+  },
+  {
+    command: "/whatsapp",
+    label: "Integraciones WhatsApp",
+    description: "Resumen de agentes e integraciones activas de WhatsApp IA",
+    icon: <MessageSquare className="w-4 h-4 text-emerald-400" />,
+    prompt: "Resumir el estado completo de los agentes de WhatsApp IA: motor Syspro (18.225.19.182), integraciones Meta API activas, Natural Slim (Perú/Bolivia) y próximas automatizaciones proyectadas.",
+  },
+  {
+    command: "/nuevo",
+    label: "Nueva Conversación",
+    description: "Limpia el chat e inicia un hilo fresco",
+    icon: <Plus className="w-4 h-4 text-violet-400" />,
+    action: "clear",
+  },
+  {
+    command: "/exportar",
+    label: "Exportar Conversación",
+    description: "Descarga el historial como Markdown o PDF",
+    icon: <Download className="w-4 h-4 text-amber-400" />,
+    action: "export",
+  },
+  {
+    command: "/imagen",
+    label: "Modo Visión",
+    description: "Activa el análisis de imágenes con Groq Vision / GPT-4o",
+    icon: <ImageIcon className="w-4 h-4 text-pink-400" />,
+    action: "image",
+  },
+  {
+    command: "/voz",
+    label: "Activar Dictado",
+    description: "Activa el micrófono para dictar por voz",
+    icon: <Mic className="w-4 h-4 text-red-400" />,
+    action: "voice",
+  },
+  {
+    command: "/jowhalth",
+    label: "Estado Jowhalth Academy",
+    description: "Consulta el estado de la plataforma educativa",
+    icon: <Zap className="w-4 h-4 text-yellow-400" />,
+    prompt: "Proporcionar un resumen completo del estado actual de Jowhalth Academy: plataforma PocketBase en srv888548.hstgr.cloud, módulos activos, base de estudiantes y próximas integraciones de pago con Wompi.",
+  },
+  {
+    command: "/dian",
+    label: "Estado DIAN & Facturación",
+    description: "Estado del firmador electrónico y cumplimiento UBL 2.1",
+    icon: <Terminal className="w-4 h-4 text-orange-400" />,
+    prompt: "Resumir el estado del sistema de Facturación Electrónica DIAN: servidor firmador B (52.205.110.85), ambiente actual de habilitación, estándar UBL 2.1 y clientes multitenant activos.",
+  },
+];
+
+interface SlashCommandMenuProps {
+  query: string;
+  onSelect: (cmd: SlashCommand) => void;
+  onClose: () => void;
+}
+
+export default function SlashCommandMenu({ query, onSelect, onClose }: SlashCommandMenuProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const filtered = COMMANDS.filter(
+    (c) =>
+      c.command.includes(query.toLowerCase()) ||
+      c.label.toLowerCase().includes(query.toLowerCase().replace("/", ""))
+  );
+
+  // Cerrar con Escape
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  if (filtered.length === 0) return null;
+
+  return (
+    <div
+      ref={containerRef}
+      className="absolute bottom-full left-0 right-0 mb-2 bg-slate-900/98 backdrop-blur-2xl border border-cyan-500/30 rounded-2xl overflow-hidden shadow-2xl shadow-cyan-950/50 z-50 animate-in fade-in slide-in-from-bottom-2"
+    >
+      {/* Header del menú */}
+      <div className="px-4 py-2.5 border-b border-slate-800/80 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+            Comandos JARVIS
+          </span>
+        </div>
+        <span className="text-[10px] text-slate-500 font-mono">
+          {filtered.length} disponibles · ESC para cerrar
+        </span>
+      </div>
+
+      {/* Lista de comandos */}
+      <div className="max-h-64 overflow-y-auto divide-y divide-slate-800/60">
+        {filtered.map((cmd) => (
+          <button
+            key={cmd.command}
+            onClick={() => onSelect(cmd)}
+            className="w-full px-4 py-3 flex items-center gap-3 hover:bg-cyan-950/40 transition-all text-left group"
+          >
+            {/* Icono */}
+            <div className="w-8 h-8 rounded-xl bg-slate-800/80 border border-slate-700/60 group-hover:border-cyan-500/40 flex items-center justify-center shrink-0 transition-colors">
+              {cmd.icon}
+            </div>
+
+            {/* Texto */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold text-cyan-400">
+                  {cmd.command}
+                </span>
+                <span className="text-xs font-semibold text-slate-200">
+                  {cmd.label}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                {cmd.description}
+              </p>
+            </div>
+
+            {/* Badge acción */}
+            {cmd.action && (
+              <span className="text-[9px] font-mono bg-violet-950 border border-violet-500/30 text-violet-300 px-1.5 py-0.5 rounded shrink-0">
+                {cmd.action.toUpperCase()}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

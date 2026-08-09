@@ -7,12 +7,14 @@ export interface ChatMessage {
   timestamp: string;
   provider?: LLMProvider;
   latencyMs?: number;
+  image?: string;
 }
 
 export interface SendMessagePayload {
   message: string;
   provider: LLMProvider;
   apiKey?: string;
+  image?: string;
   history?: { role: string; content: string }[];
 }
 
