@@ -238,7 +238,7 @@ export default function ChatInterface({
   return (
     <div className="flex-1 flex flex-col h-full bg-[#050811] relative overflow-hidden">
       {/* Fondo Neón */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(6,182,212,0.15),rgba(255,255,255,0))]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(6,182,212,0.15),rgba(255,255,255,0))] pointer-events-none" />
 
       {/* Top Controls Bar */}
       <div className="px-4 py-2 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur-md flex items-center justify-between z-20 flex-wrap gap-2">
