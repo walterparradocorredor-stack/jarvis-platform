@@ -11,6 +11,8 @@ import {
   Mic,
   Zap,
   Terminal,
+  Calendar,
+  Bot,
 } from "lucide-react";
 
 export interface SlashCommand {
@@ -23,6 +25,13 @@ export interface SlashCommand {
 }
 
 const COMMANDS: SlashCommand[] = [
+  {
+    command: "/briefing",
+    label: "Daily Briefing Ejecutivo",
+    description: "Resumen matutino integral de tareas, métricas y estado del VPS para el Dr. Walther",
+    icon: <Calendar className="w-4 h-4 text-emerald-400" />,
+    prompt: "Generar un Daily Briefing Ejecutivo matutino de 360 grados para el Dr. Walther Parrado: 1. Resumen de estado de Jowhalth Academy. 2. Estado de salud de la infraestructura VPS (31.97.145.8). 3. Tareas estratégicas del día y agentes de IA activos.",
+  },
   {
     command: "/reporte",
     label: "Reporte Ejecutivo",
@@ -85,6 +94,20 @@ const COMMANDS: SlashCommand[] = [
     description: "Estado del firmador electrónico y cumplimiento UBL 2.1",
     icon: <Terminal className="w-4 h-4 text-orange-400" />,
     prompt: "Resumir el estado del sistema de Facturación Electrónica DIAN: servidor firmador B (52.205.110.85), ambiente actual de habilitación, estándar UBL 2.1 y clientes multitenant activos.",
+  },
+  {
+    command: "/agentes",
+    label: "Red de Agentes IA",
+    description: "Monitoreo del ecosistema de Agentes IA corporativos",
+    icon: <Bot className="w-4 h-4 text-cyan-400" />,
+    prompt: "Proporcionar un informe sobre los 5 Agentes de IA Corporativos del Ecosistema JyM: JARVIS Core, WhatsApp Syspro, DIAN Signer, Jowhalth Tutor y n8n Workflows.",
+  },
+  {
+    command: "/devops",
+    label: "Consola DevOps Operador",
+    description: "Acceso a diagnóstico SSH y contenedores Docker (Manuel)",
+    icon: <Terminal className="w-4 h-4 text-emerald-400" />,
+    prompt: "Generar reporte de telemetría de desarrollo y estado DevOps para Manuel (CEO & Tech Lead): contenedores Docker, latencia, memoria RAM del VPS 31.97.145.8 y estado del motor Flask.",
   },
 ];
 

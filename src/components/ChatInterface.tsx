@@ -1,13 +1,16 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Send, User, Sparkles, Check, Copy, Brain, Download } from "lucide-react";
+import { Send, User, Sparkles, Check, Copy, Brain, Download, Cpu, Database, Bot, Terminal } from "lucide-react";
 import { ChatMessage, LLMProvider } from "@/lib/jarvisApi";
 import MemoryNeuralNetwork from "@/components/MemoryNeuralNetwork";
 import VoiceModule from "@/components/VoiceModule";
 import ImageUploadModule from "@/components/ImageUploadModule";
 import JarvisOrb from "@/components/JarvisOrb";
 import SlashCommandMenu, { SlashCommand } from "@/components/SlashCommandMenu";
+import MemoryManagerModal from "@/components/MemoryManagerModal";
+import AgentHubModal from "@/components/AgentHubModal";
+import DevOpsConsoleModal from "@/components/DevOpsConsoleModal";
 
 interface ChatInterfaceProps {
   currentProvider?: LLMProvider;
@@ -19,11 +22,12 @@ interface ChatInterfaceProps {
 type OrbState = "idle" | "listening" | "thinking" | "speaking";
 
 export default function ChatInterface({
-  currentProvider = "local",
+  currentProvider = "groq",
   activeApiKey = "",
   isOperatorView = false,
   jarvisImageSrc,
 }: ChatInterfaceProps) {
+  const [activeProvider, setActiveProvider] = useState<LLMProvider>(currentProvider);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
@@ -31,7 +35,7 @@ export default function ChatInterface({
       content:
         "¡Bienvenido, **Dr. Walther Parrado**! Soy **JARVIS**, la Inteligencia Artificial Corporativa de su Ecosistema Digital (**JyM Tech Solutions & Jowhalth Academy**). ¿En qué proyecto o análisis estratégico puedo asistirle el día de hoy?",
       timestamp: "08:00 AM",
-      provider: currentProvider,
+      provider: activeProvider,
     },
   ]);
 
@@ -42,6 +46,9 @@ export default function ChatInterface({
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showNeuralNet, setShowNeuralNet] = useState(true);
+  const [showMemoryModal, setShowMemoryModal] = useState(false);
+  const [showAgentModal, setShowAgentModal] = useState(false);
+  const [showDevOpsModal, setShowDevOpsModal] = useState(false);
   const [lastJarvisReply, setLastJarvisReply] = useState<string>("");
   const [showSlash, setShowSlash] = useState(false);
   const [slashQuery, setSlashQuery] = useState("");
@@ -107,7 +114,7 @@ export default function ChatInterface({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: userText || "Analizar la imagen adjunta.",
-            provider: currentProvider,
+            provider: activeProvider,
             apiKey: activeApiKey,
             image: attachedImage || undefined,
             history,
@@ -247,7 +254,7 @@ export default function ChatInterface({
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(6,182,212,0.15),rgba(255,255,255,0))]" />
 
       {/* Top Controls Bar */}
-      <div className="px-4 py-2 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur-md flex items-center justify-between z-20">
+      <div className="px-4 py-2 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur-md flex items-center justify-between z-20 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowNeuralNet(!showNeuralNet)}
@@ -264,6 +271,33 @@ export default function ChatInterface({
           </button>
 
           <button
+            onClick={() => setShowMemoryModal(true)}
+            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/40 transition-all"
+            title="Abrir gestor de vectores de memoria RAG"
+          >
+            <Database className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden md:inline">Vectores RAG</span>
+          </button>
+
+          <button
+            onClick={() => setShowAgentModal(true)}
+            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-emerald-300 hover:border-emerald-500/40 transition-all"
+            title="Monitoreo de Agentes IA Corporativos"
+          >
+            <Bot className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden md:inline">Agentes IA</span>
+          </button>
+
+          <button
+            onClick={() => setShowDevOpsModal(true)}
+            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-amber-300 hover:border-amber-500/40 transition-all"
+            title="Consola DevOps Manuel (CEO)"
+          >
+            <Terminal className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden lg:inline">DevOps</span>
+          </button>
+
+          <button
             onClick={handleExport}
             title="Exportar conversación como Markdown"
             className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 transition-all"
@@ -273,14 +307,39 @@ export default function ChatInterface({
           </button>
         </div>
 
-        <VoiceModule
-          onSpeechResult={(text) => {
-            setOrbState("listening");
-            handleSendRef.current(text);
-          }}
-          lastJarvisMessage={lastJarvisReply}
-          autoSpeak={false}
-        />
+        <div className="flex items-center gap-2">
+          {/* Selector Dinámico de Motor LLM */}
+          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 py-1 text-xs shadow-inner">
+            <Cpu className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <select
+              value={activeProvider}
+              onChange={(e) => setActiveProvider(e.target.value as LLMProvider)}
+              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
+            >
+              <option value="groq" className="bg-slate-950 text-slate-200">
+                ⚡ Groq Llama 3.3 (70B Fast)
+              </option>
+              <option value="openai" className="bg-slate-950 text-slate-200">
+                🧠 OpenAI GPT-4o Mini
+              </option>
+              <option value="gemini" className="bg-slate-950 text-slate-200">
+                💎 Gemini 1.5 Flash Vision
+              </option>
+              <option value="local" className="bg-slate-950 text-slate-200">
+                🔒 Llama 3.1 Local (VPS :5000)
+              </option>
+            </select>
+          </div>
+
+          <VoiceModule
+            onSpeechResult={(text) => {
+              setOrbState("listening");
+              handleSendRef.current(text);
+            }}
+            lastJarvisMessage={lastJarvisReply}
+            autoSpeak={false}
+          />
+        </div>
       </div>
 
       {/* Visualizador de Red Neuronal */}
@@ -398,6 +457,11 @@ export default function ChatInterface({
           <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
             {[
               {
+                label: "📅 Daily Briefing",
+                prompt:
+                  "Generar un Daily Briefing Ejecutivo matutino para el Dr. Walther Parrado con métricas, agenda y estado del VPS.",
+              },
+              {
                 label: "📊 Reporte Ejecutivo",
                 prompt:
                   "Generar un reporte ejecutivo integral del Ecosistema Digital y la plataforma Jowhalth Academy para el Dr. Walther Parrado.",
@@ -479,6 +543,10 @@ export default function ChatInterface({
           </div>
         </div>
       </div>
+      {/* Modals de Extensión */}
+      <MemoryManagerModal isOpen={showMemoryModal} onClose={() => setShowMemoryModal(false)} />
+      <AgentHubModal isOpen={showAgentModal} onClose={() => setShowAgentModal(false)} />
+      <DevOpsConsoleModal isOpen={showDevOpsModal} onClose={() => setShowDevOpsModal(false)} />
     </div>
   );
 }
