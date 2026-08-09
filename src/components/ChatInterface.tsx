@@ -319,7 +319,9 @@ export default function ChatInterface({
           </div>
 
           <VoiceModule
+            onInterimResult={(text) => setInputMessage(text)}
             onSpeechResult={(text) => {
+              setInputMessage(text);
               setOrbState("listening");
               handleSendRef.current(text);
             }}
@@ -507,7 +509,6 @@ export default function ChatInterface({
                     onKeyDown={(e) => {
                       if (e.key === "Escape") setShowSlash(false);
                     }}
-                    disabled={isLoading}
                     className="flex-1 bg-transparent px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none"
                   />
 

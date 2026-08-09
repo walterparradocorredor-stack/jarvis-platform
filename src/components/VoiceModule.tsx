@@ -1,97 +1,95 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, MicOff, Volume2, VolumeX, Radio, Sparkles } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, Radio, Sparkles, RefreshCw } from "lucide-react";
 
 interface VoiceModuleProps {
   onSpeechResult: (text: string) => void;
+  onInterimResult?: (text: string) => void;
   lastJarvisMessage?: string;
   autoSpeak?: boolean;
 }
 
 export default function VoiceModule({
   onSpeechResult,
+  onInterimResult,
   lastJarvisMessage,
   autoSpeak = false,
 }: VoiceModuleProps) {
-  const [isListening, setIsListening] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(!autoSpeak);
-  const [speechSupported, setSpeechSupported] = useState(true);
   const [micPermissionError, setMicPermissionError] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  const wantListeningRef = useRef<boolean>(false);
 
-  // Inicializar Speech Recognition nativo con auto-reanudación transparente ante silencios (no-speech)
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = "es-CO";
+  // Iniciar / Detener Grabación de Audio para Whisper
+  const toggleRecording = async () => {
+    if (isRecording) {
+      // Detener grabación y enviar a Whisper
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecording(false);
+    } else {
+      setMicPermissionError(false);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        audioChunksRef.current = [];
 
-        recognition.onresult = (event: any) => {
-          let finalTranscript = "";
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
-            }
-          }
-
-          if (finalTranscript.trim()) {
-            onSpeechResult(finalTranscript.trim());
-            wantListeningRef.current = false;
-            setIsListening(false);
-            try {
-              recognition.stop();
-            } catch (_) {}
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
           }
         };
 
-        recognition.onerror = (event: any) => {
-          if (event.error === "no-speech") {
-            // Reanudación transparente ante tiempos de silencio en Chrome
-            if (wantListeningRef.current) {
-              setTimeout(() => {
-                try {
-                  recognition.start();
-                } catch (_) {}
-              }, 200);
-              return;
-            }
-          }
+        mediaRecorder.onstop = async () => {
+          // Apagar pistas del micrófono
+          stream.getTracks().forEach((track) => track.stop());
 
-          if (event.error === "not-allowed" || event.error === "permission-denied") {
-            setMicPermissionError(true);
+          const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          if (audioBlob.size < 1000) return; // Audio demasiado corto
+
+          setIsTranscribing(true);
+          try {
+            const formData = new FormData();
+            formData.append("file", audioBlob, "dictation.webm");
+
+            const res = await fetch("/api/whisper", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              if (data.text && data.text.trim()) {
+                const cleanText = data.text.trim();
+                if (onInterimResult) onInterimResult(cleanText);
+                onSpeechResult(cleanText);
+              }
+            }
+          } catch (err) {
+            console.error("Error transcribiendo con Whisper:", err);
+          } finally {
+            setIsTranscribing(false);
           }
-          wantListeningRef.current = false;
-          setIsListening(false);
         };
 
-        recognition.onend = () => {
-          if (wantListeningRef.current) {
-            try {
-              recognition.start();
-            } catch (_) {
-              setIsListening(false);
-            }
-          } else {
-            setIsListening(false);
-          }
-        };
-
-        recognitionRef.current = recognition;
-      } else {
-        setSpeechSupported(false);
+        mediaRecorder.start(200);
+        mediaRecorderRef.current = mediaRecorder;
+        setIsRecording(true);
+      } catch (err) {
+        console.error("Permiso de micrófono denegado:", err);
+        setMicPermissionError(true);
+        setIsRecording(false);
       }
     }
-  }, [onSpeechResult]);
+  };
 
-  // Sintetizar voz cuando llega un mensaje de JARVIS
+  // Sintetizar voz (TTS) cuando llega un mensaje de JARVIS
   useEffect(() => {
     if (lastJarvisMessage && !isMuted && typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
@@ -114,31 +112,6 @@ export default function VoiceModule({
     }
   }, [lastJarvisMessage, isMuted]);
 
-  const toggleListening = async () => {
-    if (!speechSupported || !recognitionRef.current) return;
-
-    if (isListening) {
-      wantListeningRef.current = false;
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      setMicPermissionError(false);
-      wantListeningRef.current = true;
-      try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          await navigator.mediaDevices.getUserMedia({ audio: true });
-        }
-        recognitionRef.current.start();
-        setIsListening(true);
-      } catch (err) {
-        console.error("Permiso de micrófono denegado:", err);
-        setMicPermissionError(true);
-        wantListeningRef.current = false;
-        setIsListening(false);
-      }
-    }
-  };
-
   const toggleMute = () => {
     if (isSpeaking && typeof window !== "undefined") {
       window.speechSynthesis.cancel();
@@ -149,14 +122,16 @@ export default function VoiceModule({
 
   return (
     <div className="flex items-center gap-2">
-      {/* Botón de Micrófono (Dictado por voz STT) */}
+      {/* Botón de Micrófono Whisper STT */}
       <button
         id="jarvis-voice-btn"
         type="button"
-        onClick={toggleListening}
-        disabled={!speechSupported}
+        onClick={toggleRecording}
+        disabled={isTranscribing}
         className={`p-2.5 rounded-xl border transition-all flex items-center gap-2 text-xs font-semibold shadow-lg ${
-          isListening
+          isTranscribing
+            ? "bg-cyan-950/80 border-cyan-500 text-cyan-300 animate-pulse shadow-cyan-500/20"
+            : isRecording
             ? "bg-red-950/80 border-red-500 text-red-400 animate-pulse shadow-red-500/20"
             : micPermissionError
             ? "bg-amber-950/80 border-amber-500 text-amber-300"
@@ -165,15 +140,22 @@ export default function VoiceModule({
         title={
           micPermissionError
             ? "Permiso de micrófono denegado en el navegador"
-            : isListening
-            ? "Detener dictado de voz"
-            : "Dictar mensaje por voz"
+            : isTranscribing
+            ? "Transcribiendo con Groq Whisper Large v3..."
+            : isRecording
+            ? "Haz clic para finalizar grabación Whisper"
+            : "Dictar voz con Groq Whisper IA"
         }
       >
-        {isListening ? (
+        {isTranscribing ? (
+          <>
+            <RefreshCw className="w-4 h-4 text-cyan-400 animate-spin" />
+            <span className="hidden sm:inline text-cyan-300 font-mono">Whisper IA...</span>
+          </>
+        ) : isRecording ? (
           <>
             <Radio className="w-4 h-4 text-red-400 animate-ping" />
-            <span className="hidden sm:inline text-red-300">Escuchando...</span>
+            <span className="hidden sm:inline text-red-300">Grabando...</span>
           </>
         ) : micPermissionError ? (
           <>
@@ -183,7 +165,7 @@ export default function VoiceModule({
         ) : (
           <>
             <Mic className="w-4 h-4 text-cyan-400" />
-            <span className="hidden sm:inline">Dictar</span>
+            <span className="hidden sm:inline">Dictar Whisper</span>
           </>
         )}
       </button>
