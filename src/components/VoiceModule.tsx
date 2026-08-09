@@ -18,9 +18,10 @@ export default function VoiceModule({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(!autoSpeak);
   const [speechSupported, setSpeechSupported] = useState(true);
+  const [micPermissionError, setMicPermissionError] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Inicializar Speech Recognition nativo
+  // Inicializar Speech Recognition nativo con soporte mejorado
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRecognition =
@@ -33,12 +34,15 @@ export default function VoiceModule({
         recognition.lang = "es-CO";
 
         recognition.onresult = (event: any) => {
-          const transcript = Array.from(event.results)
-            .map((result: any) => result[0].transcript)
-            .join("");
+          let finalTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            }
+          }
 
-          if (event.results[0].isFinal) {
-            onSpeechResult(transcript);
+          if (finalTranscript.trim()) {
+            onSpeechResult(finalTranscript.trim());
             setIsListening(false);
           }
         };
@@ -46,6 +50,9 @@ export default function VoiceModule({
         recognition.onerror = (event: any) => {
           console.error("Error en reconocimiento de voz:", event.error);
           setIsListening(false);
+          if (event.error === "not-allowed" || event.error === "permission-denied") {
+            setMicPermissionError(true);
+          }
         };
 
         recognition.onend = () => {
@@ -62,19 +69,17 @@ export default function VoiceModule({
   // Sintetizar voz cuando llega un mensaje de JARVIS
   useEffect(() => {
     if (lastJarvisMessage && !isMuted && typeof window !== "undefined" && window.speechSynthesis) {
-      // Detener sintetizaciones previas
       window.speechSynthesis.cancel();
 
-      // Limpiar markdown del mensaje para leer texto limpio
       const cleanText = lastJarvisMessage
         .replace(/[*_#`~]/g, "")
         .replace(/\[.*?\]\(.*?\)/g, "")
-        .slice(0, 300); // Máximo 300 caracteres para respuesta hablada fluida
+        .slice(0, 300);
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = "es-ES";
-      utterance.rate = 1.05; // Velocidad ligeramente ágil
-      utterance.pitch = 0.95; // Tono masculino sobrio
+      utterance.rate = 1.05;
+      utterance.pitch = 0.95;
 
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
@@ -84,18 +89,25 @@ export default function VoiceModule({
     }
   }, [lastJarvisMessage, isMuted]);
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
     if (!speechSupported || !recognitionRef.current) return;
 
     if (isListening) {
       recognitionRef.current.stop();
       setIsListening(false);
     } else {
+      setMicPermissionError(false);
       try {
+        // Solicitar explícitamente el permiso del micrófono al navegador
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
         recognitionRef.current.start();
         setIsListening(true);
       } catch (err) {
-        console.error("No se pudo iniciar el dictado:", err);
+        console.error("Permiso de micrófono denegado:", err);
+        setMicPermissionError(true);
+        setIsListening(false);
       }
     }
   };
@@ -112,20 +124,34 @@ export default function VoiceModule({
     <div className="flex items-center gap-2">
       {/* Botón de Micrófono (Dictado por voz STT) */}
       <button
+        id="jarvis-voice-btn"
         type="button"
         onClick={toggleListening}
         disabled={!speechSupported}
         className={`p-2.5 rounded-xl border transition-all flex items-center gap-2 text-xs font-semibold shadow-lg ${
           isListening
             ? "bg-red-950/80 border-red-500 text-red-400 animate-pulse shadow-red-500/20"
+            : micPermissionError
+            ? "bg-amber-950/80 border-amber-500 text-amber-300"
             : "bg-slate-900/90 border-slate-800 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300 shadow-slate-950/20"
         }`}
-        title={isListening ? "Detener dictado de voz" : "Dictar mensaje por voz"}
+        title={
+          micPermissionError
+            ? "Permiso de micrófono denegado en el navegador"
+            : isListening
+            ? "Detener dictado de voz"
+            : "Dictar mensaje por voz"
+        }
       >
         {isListening ? (
           <>
             <Radio className="w-4 h-4 text-red-400 animate-ping" />
             <span className="hidden sm:inline text-red-300">Escuchando...</span>
+          </>
+        ) : micPermissionError ? (
+          <>
+            <MicOff className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline text-amber-300">Permiso Mic Requerido</span>
           </>
         ) : (
           <>
