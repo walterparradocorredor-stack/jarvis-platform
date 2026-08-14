@@ -401,9 +401,9 @@ export default function ChatInterface({
         <IntegrationStatusBadges />
       </div>
 
-      {/* Centro de Voz — pantalla principal centrada en hablar, no en escribir */}
-      <div className="px-4 py-5 sm:py-6 bg-slate-950/40 border-b border-slate-800/60 flex flex-col items-center gap-4 z-20">
-        <JarvisOrb state={orbState} size={96} imageSrc={jarvisImageSrc} />
+      {/* Centro de Voz — control compacto, prioriza audio sobre pantalla */}
+      <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800/60 flex items-center justify-center gap-3 z-20">
+        <JarvisOrb state={orbState} size={40} imageSrc={jarvisImageSrc} />
         <VoiceModule
           variant="hero"
           onInterimResult={(text) => setInputMessage(text)}

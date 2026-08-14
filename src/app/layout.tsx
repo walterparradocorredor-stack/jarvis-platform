@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import FooterSignature from "@/components/FooterSignature";
 
 export const metadata: Metadata = {
   title: "JARVIS AI Platform — Asistente de IA Corporativa | JyM Tech Solutions",
@@ -26,7 +25,6 @@ export default function RootLayout({
         <div className="flex-1 flex flex-col">
           {children}
         </div>
-        <FooterSignature />
       </body>
     </html>
   );

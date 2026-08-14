@@ -510,7 +510,7 @@ export default function VoiceModule({
     };
 
     return (
-      <div className="flex flex-col items-center gap-4">
+      <div className="flex flex-col items-center gap-2">
         {voiceState !== "idle" && (
           <AudioWaveform
             analyser={ttsAnalyser}
@@ -520,23 +520,23 @@ export default function VoiceModule({
           />
         )}
 
-        <button
-          type="button"
-          onClick={toggleConvoMode}
-          className={`w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-gradient-to-br border-2 shadow-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${heroColors[isConvoMode ? voiceState : "idle"]}`}
-        >
-          {isConvoMode && voiceState === "listening" && <Radio className="w-10 h-10 text-white animate-ping" />}
-          {isConvoMode && voiceState === "transcribing" && <RefreshCw className="w-10 h-10 text-white animate-spin" />}
-          {isConvoMode && voiceState === "speaking" && <Sparkles className="w-10 h-10 text-white animate-bounce" />}
-          {(!isConvoMode || voiceState === "idle") && <PhoneCall className="w-10 h-10 text-white" />}
-          <span className="text-sm font-bold text-white text-center px-4">{heroLabel}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleConvoMode}
+            className={`px-4 py-2 rounded-full bg-gradient-to-br border shadow-lg flex items-center gap-2 transition-all active:scale-95 ${heroColors[isConvoMode ? voiceState : "idle"]}`}
+          >
+            {isConvoMode && voiceState === "listening" && <Radio className="w-4 h-4 text-white animate-ping" />}
+            {isConvoMode && voiceState === "transcribing" && <RefreshCw className="w-4 h-4 text-white animate-spin" />}
+            {isConvoMode && voiceState === "speaking" && <Sparkles className="w-4 h-4 text-white animate-bounce" />}
+            {(!isConvoMode || voiceState === "idle") && <PhoneCall className="w-4 h-4 text-white" />}
+            <span className="text-xs font-bold text-white">{heroLabel}</span>
+          </button>
 
-        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={toggleMute}
-            className={`p-2.5 rounded-xl border transition-all ${
+            className={`p-2 rounded-full border transition-all ${
               voiceState === "speaking" && !isMuted
                 ? "bg-purple-950 border-purple-500 text-purple-300 animate-pulse"
                 : isMuted
@@ -553,7 +553,7 @@ export default function VoiceModule({
               type="button"
               onClick={toggleRecording}
               disabled={voiceState === "transcribing"}
-              className={`px-3 py-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-semibold shadow-lg ${
+              className={`p-2 rounded-full border transition-all flex items-center gap-1.5 text-xs font-semibold shadow-lg ${
                 voiceState === "transcribing"
                   ? "bg-cyan-950 border-cyan-400 text-cyan-300 animate-pulse"
                   : voiceState === "listening"
@@ -565,7 +565,6 @@ export default function VoiceModule({
               title="Grabar un solo mensaje de voz (sin conversación continua)"
             >
               <Mic className="w-4 h-4 text-cyan-400" />
-              <span>Mensaje único</span>
             </button>
           )}
         </div>
