@@ -128,6 +128,24 @@ export async function deleteCalendarEvent(eventId: string): Promise<{ ok: boolea
   }
 }
 
+export async function updateCalendarEvent(
+  eventId: string,
+  params: { title?: string; startTime?: string; endTime?: string; description?: string; location?: string }
+): Promise<{ ok: boolean; link?: string; error?: string }> {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/calendar/event/${encodeURIComponent(eventId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json();
+    return res.ok && data.ok ? { ok: true, link: data.data?.link } : { ok: false, error: data.error };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+}
+
 export interface RouteInfo {
   distance: string;
   duration: string;

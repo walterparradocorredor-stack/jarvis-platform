@@ -3,6 +3,7 @@ import {
   getCalendarAgenda,
   createCalendarEvent,
   deleteCalendarEvent,
+  updateCalendarEvent,
   getMapsRoute,
   getPlacesNearby,
   getWeatherCurrent,
@@ -28,6 +29,8 @@ const CALENDAR_RE = /\b(agend\w*|calendario|cita|citas|reuni[oó]n|reuniones|cal
 const CALENDAR_CREATE_RE = /\b(?:crea(?:r|me)?|agend(?:a|ar|ame)|programa(?:r|me)?)\s+(?:una\s+)?(?:cita|reuni[oó]n|evento)\b/i;
 // Cancelar/borrar cita: "cancela/borra/elimina mi cita/reunión con X"
 const CALENDAR_DELETE_RE = /\b(?:cancela(?:r)?|borra(?:r)?|elimina(?:r)?|quita(?:r)?)\s+(?:la\s+|el\s+|los\s+|las\s+|mi\s+|mis\s+|un\s+|una\s+|ese\s+|esa\s+|esta\s+|este\s+)*(?:cita|reuni[oó]n|evento)/i;
+// Mover/reprogramar cita: "cambia/mueve/pasa/reprograma mi cita con X para las Y"
+const CALENDAR_UPDATE_RE = /\b(?:cambia(?:r)?|mueve|mover|pasa(?:r)?|reprograma(?:r)?|reagenda(?:r)?|actualiza(?:r)?)\s+(?:la\s+|el\s+|los\s+|las\s+|mi\s+|mis\s+|un\s+|una\s+|ese\s+|esa\s+|esta\s+|este\s+)*(?:cita|reuni[oó]n|evento|hora)/i;
 const MAPS_RE = /\b(ruta|rutas|tr[aá]fico|c[oó]mo llegar|mapa|distancia|cu[aá]nto me demoro|cu[aá]nto (me )?tardo)\b/i;
 const ROUTE_PAIR_RE = /(?:de|desde)\s+(.+?)\s+(?:a|hasta|hacia)\s+(.+?)(?:[.?!]|$)/i;
 const WEATHER_RE = /\b(clima|pron[oó]stico|temperatura|va a llover|lluvia|est[aá] soleado)\b/i;
@@ -158,6 +161,69 @@ El usuario escribió: "${message}"
   }
 }
 
+interface EventReschedule {
+  status: "found" | "ambiguous" | "not_found";
+  eventId?: string;
+  title?: string;
+  newStartTime?: string;
+  newEndTime?: string;
+  candidates?: { title: string; when: string }[];
+}
+
+/**
+ * Igual que matchEventToDelete, pero además extrae la nueva fecha/hora que
+ * pide el usuario ("cámbiala para las 5pm", "muévela al viernes"). Nunca
+ * mueve una cita si hay ambigüedad sobre cuál — pregunta primero.
+ */
+async function matchEventToReschedule(message: string): Promise<EventReschedule | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const agenda = await getCalendarAgenda("week");
+  if (!agenda.ok || !agenda.items || agenda.items.length === 0) {
+    return { status: "not_found" };
+  }
+
+  const now = new Date();
+  const nowStr = now.toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" });
+  const eventList = agenda.items
+    .map((e) => `- id="${e.id}" | "${e.title}" | ${e.start} a ${e.end}${e.location ? ` | ${e.location}` : ""}`)
+    .join("\n");
+
+  const prompt = `Fecha y hora actual: ${nowStr} (America/Bogota, UTC-05:00).
+Estos son los eventos reales de la agenda de los próximos 7 días:
+${eventList}
+
+El usuario escribió: "${message}"
+
+Quiere mover/cambiar la hora de uno de estos eventos. Responde SOLO con un JSON válido, sin texto adicional:
+- Si hay EXACTAMENTE un evento que coincide Y se puede determinar la nueva fecha/hora con claridad: {"status": "found", "eventId": "...", "title": "...", "newStartTime": "ISO 8601 con offset -05:00", "newEndTime": "ISO 8601 con offset -05:00 (misma duración que el evento original si no se especifica otra)"}
+- Si hay dos o más eventos que podrían ser: {"status": "ambiguous", "candidates": [{"title": "...", "when": "..."}, ...]}
+- Si no hay ningún evento que coincida, o no se puede determinar con claridad la nueva fecha/hora: {"status": "not_found"}`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return null;
+    return JSON.parse(text) as EventReschedule;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Detecta si el mensaje del usuario necesita datos reales de Gmail/Calendar/Maps
  * y devuelve un bloque de contexto para inyectar en el system prompt, con
@@ -176,7 +242,29 @@ export async function buildToolContext(message: string): Promise<string | null> 
     );
   }
 
-  if (CALENDAR_DELETE_RE.test(message)) {
+  if (CALENDAR_UPDATE_RE.test(message)) {
+    const resched = await matchEventToReschedule(message);
+    if (!resched || resched.status === "not_found") {
+      blocks.push(
+        `[NO SE PUDO MOVER LA CITA] No se encontró con claridad cuál cita mover o para cuándo. Pregúntale al usuario cuál cita exactamente y a qué fecha/hora nueva — no inventes que la moviste.`
+      );
+    } else if (resched.status === "ambiguous") {
+      const list = (resched.candidates || []).map((c) => `- "${c.title}" (${c.when})`).join("\n");
+      blocks.push(
+        `[VARIAS CITAS COINCIDEN, SE NECESITA ACLARACIÓN]\n${list}\nHay más de una cita real que podría ser la que el usuario quiere mover. Pregúntale cuál de estas exactamente — NO muevas ninguna todavía, no asumas cuál.`
+      );
+    } else {
+      const result = await updateCalendarEvent(resched.eventId!, {
+        startTime: resched.newStartTime,
+        endTime: resched.newEndTime,
+      });
+      blocks.push(
+        result.ok
+          ? `[CITA MOVIDA REALMENTE EN GOOGLE CALENDAR: "${resched.title}" ahora es ${resched.newStartTime} a ${resched.newEndTime}] Confirma al usuario la nueva fecha/hora exacta.`
+          : `[NO SE PUDO MOVER LA CITA] Error real: "${result.error}". Informa este error tal cual — JAMÁS confirmes que la cita se movió si esto falló.`
+      );
+    }
+  } else if (CALENDAR_DELETE_RE.test(message)) {
     const match = await matchEventToDelete(message);
     if (!match || match.status === "not_found") {
       blocks.push(
