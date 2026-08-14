@@ -30,12 +30,12 @@ export default function ClientChatPage() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-[#050811] overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-[#050811] overflow-hidden">
       {/* Navbar Superior con Selector de Perfil */}
       <Navbar />
 
       {/* Vista limpia inmersiva de Chat (Estilo ChatGPT) */}
-      <main className="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+      <main className="flex-1 flex flex-col h-[calc(100dvh-64px)] overflow-hidden">
         <ChatInterface currentProvider={provider} activeApiKey={apiKey} isOperatorView={false} />
       </main>
     </div>

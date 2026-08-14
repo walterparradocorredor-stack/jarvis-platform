@@ -313,7 +313,7 @@ export default function ChatInterface({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowNeuralNet(!showNeuralNet)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all ${
+            className={`hidden lg:flex px-3 py-1.5 rounded-xl border text-xs font-semibold items-center gap-2 transition-all ${
               showNeuralNet
                 ? "bg-cyan-950/90 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10"
                 : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
@@ -596,7 +596,7 @@ export default function ChatInterface({
 
         {/* Panel Lateral Derecho: Centro de Comando (Orbe + Métricas) + Red Neuronal RAG */}
         {showNeuralNet && (
-          <div className="flex flex-col h-full shrink-0">
+          <div className="hidden lg:flex flex-col h-full shrink-0">
             <CommandCenterPanel
               orbState={orbState}
               latencyMs={[...messages].reverse().find((m) => m.latencyMs)?.latencyMs}
