@@ -17,7 +17,8 @@ interface VoiceModuleProps {
   onSpeechResult: (text: string) => void;
   onInterimResult?: (text: string) => void;
   lastJarvisMessage?: string;
-  autoSpeak?: boolean;
+  onStateChange?: (state: VoiceState) => void;
+  variant?: "compact" | "hero";
 }
 
 type VoiceState = "idle" | "listening" | "transcribing" | "speaking";
@@ -29,6 +30,8 @@ export default function VoiceModule({
   onSpeechResult,
   onInterimResult,
   lastJarvisMessage,
+  onStateChange,
+  variant = "compact",
 }: VoiceModuleProps) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [isMuted, setIsMuted] = useState(false);
@@ -66,6 +69,10 @@ export default function VoiceModule({
     window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
     return () => window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
   }, []);
+
+  useEffect(() => {
+    onStateChange?.(voiceState);
+  }, [voiceState, onStateChange]);
 
   useEffect(() => {
     convoModeRef.current = isConvoMode;
@@ -492,6 +499,85 @@ export default function VoiceModule({
     transcribing: "Whisper IA...",
     speaking: "JARVIS habla...",
   };
+
+  if (variant === "hero") {
+    const heroLabel = isConvoMode ? stateLabel[voiceState] : "Hablar con JARVIS";
+    const heroColors: Record<VoiceState, string> = {
+      idle: "from-emerald-500 to-cyan-600 shadow-emerald-500/30 border-emerald-400/60",
+      listening: "from-red-500 to-rose-600 shadow-red-500/40 border-red-400/70 animate-pulse",
+      transcribing: "from-cyan-500 to-blue-600 shadow-cyan-500/40 border-cyan-400/70 animate-pulse",
+      speaking: "from-purple-500 to-fuchsia-600 shadow-purple-500/40 border-purple-400/70 animate-pulse",
+    };
+
+    return (
+      <div className="flex flex-col items-center gap-4">
+        {voiceState !== "idle" && (
+          <AudioWaveform
+            analyser={ttsAnalyser}
+            simulated={voiceState === "speaking" && ttsSimulated}
+            active={voiceState === "listening" || voiceState === "speaking"}
+            color={voiceState === "speaking" ? "#c084fc" : "#22d3ee"}
+          />
+        )}
+
+        <button
+          type="button"
+          onClick={toggleConvoMode}
+          className={`w-40 h-40 sm:w-48 sm:h-48 rounded-full bg-gradient-to-br border-2 shadow-2xl flex flex-col items-center justify-center gap-2 transition-all active:scale-95 ${heroColors[isConvoMode ? voiceState : "idle"]}`}
+        >
+          {isConvoMode && voiceState === "listening" && <Radio className="w-10 h-10 text-white animate-ping" />}
+          {isConvoMode && voiceState === "transcribing" && <RefreshCw className="w-10 h-10 text-white animate-spin" />}
+          {isConvoMode && voiceState === "speaking" && <Sparkles className="w-10 h-10 text-white animate-bounce" />}
+          {(!isConvoMode || voiceState === "idle") && <PhoneCall className="w-10 h-10 text-white" />}
+          <span className="text-sm font-bold text-white text-center px-4">{heroLabel}</span>
+        </button>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleMute}
+            className={`p-2.5 rounded-xl border transition-all ${
+              voiceState === "speaking" && !isMuted
+                ? "bg-purple-950 border-purple-500 text-purple-300 animate-pulse"
+                : isMuted
+                ? "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
+                : "bg-slate-900 border-slate-800 text-cyan-400 hover:border-cyan-500/40"
+            }`}
+            title={isMuted ? "Activar voz de JARVIS" : "Silenciar voz de JARVIS"}
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
+
+          {!isConvoMode && (
+            <button
+              type="button"
+              onClick={toggleRecording}
+              disabled={voiceState === "transcribing"}
+              className={`px-3 py-2.5 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-semibold shadow-lg ${
+                voiceState === "transcribing"
+                  ? "bg-cyan-950 border-cyan-400 text-cyan-300 animate-pulse"
+                  : voiceState === "listening"
+                  ? "bg-red-950 border-red-500 text-red-400 animate-pulse"
+                  : micPermissionError
+                  ? "bg-amber-950 border-amber-500 text-amber-300"
+                  : "bg-slate-900 border-slate-800 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300"
+              }`}
+              title="Grabar un solo mensaje de voz (sin conversación continua)"
+            >
+              <Mic className="w-4 h-4 text-cyan-400" />
+              <span>Mensaje único</span>
+            </button>
+          )}
+        </div>
+
+        {micPermissionError && (
+          <p className="text-xs text-amber-400 text-center max-w-xs">
+            No se pudo acceder al micrófono. Revisa los permisos del navegador.
+          </p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2">

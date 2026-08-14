@@ -393,23 +393,30 @@ export default function ChatInterface({
               handleSendRef.current("Analiza esta imagen: ¿qué ves?", dataUrl);
             }}
           />
-
-          <VoiceModule
-            onInterimResult={(text) => setInputMessage(text)}
-            onSpeechResult={(text) => {
-              setInputMessage(text);
-              setOrbState("listening");
-              handleSendRef.current(text);
-            }}
-            lastJarvisMessage={lastJarvisReply}
-            autoSpeak={false}
-          />
         </div>
       </div>
 
       {/* Badges de Estado de Integraciones MCP */}
       <div className="px-4 py-1.5 bg-slate-950/60 border-b border-slate-800/60 flex items-center justify-end z-20">
         <IntegrationStatusBadges />
+      </div>
+
+      {/* Centro de Voz — pantalla principal centrada en hablar, no en escribir */}
+      <div className="px-4 py-5 sm:py-6 bg-slate-950/40 border-b border-slate-800/60 flex flex-col items-center gap-4 z-20">
+        <JarvisOrb state={orbState} size={96} imageSrc={jarvisImageSrc} />
+        <VoiceModule
+          variant="hero"
+          onInterimResult={(text) => setInputMessage(text)}
+          onSpeechResult={(text) => {
+            setInputMessage(text);
+            handleSendRef.current(text);
+          }}
+          onStateChange={(voiceState) => {
+            if (voiceState === "transcribing") setOrbState("thinking");
+            else setOrbState(voiceState);
+          }}
+          lastJarvisMessage={lastJarvisReply}
+        />
       </div>
 
       {/* Contenedor Principal: Chat + Panel Lateral RAG */}
