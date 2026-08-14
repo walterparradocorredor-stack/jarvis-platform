@@ -63,6 +63,8 @@ export default function MemoryNeuralNetwork({
       if (res.ok) {
         const data = await res.json();
         if (data.nodes && Array.isArray(data.nodes)) {
+          const idToIndex = new Map<string, number>(data.nodes.map((item: any, idx: number) => [item.id, idx]));
+
           const loadedNodes: Node[] = data.nodes.map((item: any, idx: number) => ({
             id: idx,
             x: 40 + (idx % 2) * 150 + (Math.random() - 0.5) * 20,
@@ -73,27 +75,28 @@ export default function MemoryNeuralNetwork({
             label: item.label,
             sublabel: item.sublabel,
             category: item.category as any,
-            similarity: item.similarity || Number((Math.random() * 0.1 + 0.89).toFixed(3)),
+            similarity: item.similarity || 0,
             active: false,
             glowProgress: 0,
           }));
 
-          const edges: Edge[] = [];
-          for (let i = 0; i < loadedNodes.length; i++) {
-            for (let j = i + 1; j < loadedNodes.length; j++) {
-              const dist = Math.hypot(loadedNodes[i].x - loadedNodes[j].x, loadedNodes[i].y - loadedNodes[j].y);
-              if (dist < 140) {
-                edges.push({
-                  source: i,
-                  target: j,
-                  weight: Math.random() * 0.7 + 0.3,
-                  active: false,
-                  pulsePos: Math.random(),
-                  pulseSpeed: Math.random() * 0.01 + 0.008,
-                });
-              }
-            }
-          }
+          // Conexiones reales calculadas por el backend (similitud de coseno
+          // entre embeddings reales de la memoria), no por cercanía en pantalla.
+          const edges: Edge[] = (Array.isArray(data.edges) ? data.edges : [])
+            .map((e: any) => {
+              const source = idToIndex.get(e.source);
+              const target = idToIndex.get(e.target);
+              if (source === undefined || target === undefined) return null;
+              return {
+                source,
+                target,
+                weight: e.weight,
+                active: false,
+                pulsePos: Math.random(),
+                pulseSpeed: Math.random() * 0.01 + 0.008,
+              };
+            })
+            .filter((e: Edge | null): e is Edge => e !== null);
 
           nodesRef.current = loadedNodes;
           edgesRef.current = edges;
@@ -275,7 +278,7 @@ export default function MemoryNeuralNetwork({
   }, []);
 
   return (
-    <div className="w-80 sm:w-88 h-full bg-[#060a17]/95 border-l border-cyan-500/30 flex flex-col relative overflow-hidden backdrop-blur-2xl shrink-0 shadow-2xl z-30">
+    <div className="w-80 sm:w-88 flex-1 min-h-0 bg-[#060a17]/95 border-l border-cyan-500/30 flex flex-col relative overflow-hidden backdrop-blur-2xl shrink-0 shadow-2xl z-30">
       {/* Fondo Reticular */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.1),transparent_70%)] pointer-events-none" />
 

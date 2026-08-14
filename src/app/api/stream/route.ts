@@ -1,18 +1,32 @@
 import { NextRequest } from "next/server";
+import { buildToolContext } from "@/lib/toolsIntent";
+import { retrieveRelevantMemory, formatMemoryContext, saveMemory, wrapStreamWithMemorySave } from "@/lib/memory";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { message, history = [], image } = body;
     let { provider = "groq", apiKey } = body;
+    const conversationId = body.conversationId || "default";
+    // Si el cliente eligió explícitamente un proveedor (selector, o el fix
+    // automático de Cámara/Visión a Gemini), respetarlo — no dejar que la
+    // config global de Supabase lo pise por debajo.
+    const providerExplicit = Boolean(body.provider);
 
     if (!message) {
       return new Response(JSON.stringify({ error: "Mensaje requerido" }), { status: 400 });
     }
 
+    // Datos reales de Gmail/Calendar/Maps si el mensaje los requiere (MCP bridge del VPS)
+    const toolContext = await buildToolContext(message);
+    // Memoria real de conversaciones anteriores (pgvector), no solo la sesión actual
+    const memoryContext = formatMemoryContext(await retrieveRelevantMemory(message));
+    await saveMemory(conversationId, "user", message);
+
     // Inyección de Fecha y Hora Real en Español
     const now = new Date();
     const currentDateTimeStr = now.toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -34,7 +48,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
 3. Ecosistema Digital Real (VPS 31.97.145.8):
    - Marca Personal & Sitio Oficial: waltherparrado.com
    - Plataforma Educativa: Jowhalth Academy (PocketBase srv888548.hstgr.cloud)
-   - Plataforma JARVIS AI: jarvis.waltherparrado.com (Motor Híbrido Groq Llama 3.3 70B, Llama 3.1 Local en puerto 5000, Gemini y OpenAI)
+   - Plataforma JARVIS AI: jarvis.waltherparrado.com (Motor Híbrido Groq Llama 3.3 70B, Qwen 2.5 14B Local en puerto 5000, Gemini y OpenAI)
    - Facturación Electrónica DIAN UBL 2.1: Servidor Firmador B (52.205.110.85)
    - Agente WhatsApp Syspro IA: Integraciones Meta API activas para Natural Slim.
 4. Cuando el usuario solicite un Daily Briefing o Reporte, entrega un informe estratégico de alto nivel de 360 grados:
@@ -42,7 +56,15 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
    - Avance en Jowhalth Academy y Monetización con Wompi
    - Prioridades Ejecutivas y Recomendaciones de Inteligencia Artificial para el Día.
 5. Responde directamente al grano, en español impecable, sin rellenos robóticos.
+6. Si en este prompt aparece un bloque "[DATOS REALES DE ...]", son datos reales obtenidos en vivo de Gmail/Calendar/Maps del Dr. Walther vía las herramientas MCP del VPS: úsalos exclusivamente para responder sobre ese tema, JAMÁS inventes remitentes, citas, distancias o tiempos que no estén ahí. Si aparece un bloque "[... NO DISPONIBLE]" o "[MAPS: falta ...]", comunica el problema real con honestidad, sin fabricar datos.
+7. REGLA DE ORO ABSOLUTA: nunca confirmes que ejecutaste una acción (crear/enviar/agendar/guardar algo) a menos que un bloque de este prompt confirme explícitamente que ocurrió de verdad (ej. "[TAREA CREADA REALMENTE ...]"). Si el usuario pide una acción y no ves confirmación real de que se ejecutó, dile honestamente que esa acción todavía no está conectada o que no se pudo completar — nunca finjas haberla hecho.
+8. Si aparece un bloque "[MEMORIA REAL DE CONVERSACIONES ANTERIORES ...]", son cosas reales que el Dr. Walther dijo o que le respondiste en el pasado — úsalas para dar continuidad natural a la conversación cuando sean relevantes, sin repetirlas palabra por palabra ni mencionarlas si no vienen al caso.
 `;
+
+    const contextBlocks = [toolContext, memoryContext].filter(Boolean).join("\n\n");
+    const finalSystemPrompt = contextBlocks
+      ? `${DYNAMIC_JARVIS_SYSTEM_PROMPT}\n\n${contextBlocks}`
+      : DYNAMIC_JARVIS_SYSTEM_PROMPT;
 
     // 1. Cargar configuración guardada en Supabase BD si no hay API Key explícita
     if (!apiKey) {
@@ -62,7 +84,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
           const rows = await dbRes.json();
           const cfg = rows?.[0]?.content;
           if (cfg) {
-            if (cfg.activeProvider) provider = cfg.activeProvider;
+            if (!providerExplicit && cfg.activeProvider) provider = cfg.activeProvider;
             if (provider === "groq") apiKey = cfg.groqKey || process.env.GROQ_API_KEY;
             if (provider === "openai") apiKey = cfg.openaiKey || process.env.OPENAI_API_KEY;
             if (provider === "gemini") apiKey = cfg.geminiKey || process.env.GEMINI_API_KEY;
@@ -72,6 +94,11 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
         console.warn("Could not fetch jarvis_config in stream route:", dbErr);
       }
     }
+
+    // Si la imagen no se pudo analizar con ningún proveedor de visión, se
+    // informa el error real en vez de caer en el fallback genérico de texto
+    // (ese fallback fabricaría una respuesta que ignora la imagen adjunta).
+    let lastVisionError: string | null = null;
 
     // --- GROQ Streaming ---
     const groqKey = apiKey || process.env.GROQ_API_KEY;
@@ -88,7 +115,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
           model: modelName,
           stream: true,
           messages: [
-            { role: "system", content: DYNAMIC_JARVIS_SYSTEM_PROMPT },
+            { role: "system", content: finalSystemPrompt },
             ...history,
             { role: "user", content: userContent },
           ],
@@ -97,7 +124,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
       });
 
       if (groqRes.ok && groqRes.body) {
-        return new Response(groqRes.body, {
+        return new Response(wrapStreamWithMemorySave(groqRes.body, conversationId), {
           headers: {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
@@ -105,6 +132,16 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
           },
         });
       }
+      if (image) {
+        try {
+          const errBody = await groqRes.json();
+          lastVisionError = errBody?.error?.message || `Groq respondió ${groqRes.status}`;
+        } catch {
+          lastVisionError = `Groq respondió ${groqRes.status}`;
+        }
+      }
+    } else if (image && provider === "groq" && !groqKey) {
+      lastVisionError = "API Key de Groq no configurada.";
     }
 
     // --- OPENAI Streaming ---
@@ -121,7 +158,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
           model: "gpt-4o-mini",
           stream: true,
           messages: [
-            { role: "system", content: DYNAMIC_JARVIS_SYSTEM_PROMPT },
+            { role: "system", content: finalSystemPrompt },
             ...history,
             { role: "user", content: userContent },
           ],
@@ -129,7 +166,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
       });
 
       if (oaiRes.ok && oaiRes.body) {
-        return new Response(oaiRes.body, {
+        return new Response(wrapStreamWithMemorySave(oaiRes.body, conversationId), {
           headers: {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
@@ -137,12 +174,22 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
           },
         });
       }
+      if (image) {
+        try {
+          const errBody = await oaiRes.json();
+          lastVisionError = errBody?.error?.message || `OpenAI respondió ${oaiRes.status}`;
+        } catch {
+          lastVisionError = `OpenAI respondió ${oaiRes.status}`;
+        }
+      }
+    } else if (image && provider === "openai" && !oaiKey) {
+      lastVisionError = "API Key de OpenAI no configurada.";
     }
 
     // --- GEMINI Streaming ---
     const geminiKey = apiKey || process.env.GEMINI_API_KEY;
     if (provider === "gemini" && geminiKey) {
-      const parts: any[] = [{ text: `${DYNAMIC_JARVIS_SYSTEM_PROMPT}\n\nEl usuario pregunta: ${message}` }];
+      const parts: any[] = [{ text: `${finalSystemPrompt}\n\nEl usuario pregunta: ${message}` }];
       if (image && typeof image === "string" && image.startsWith("data:image")) {
         const [meta, base64Data] = image.split(",");
         const mimeMatch = meta.match(/data:(.*?);base64/);
@@ -150,7 +197,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
       }
 
       const gemRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?key=${geminiKey}&alt=sse`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=${geminiKey}&alt=sse`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -187,7 +234,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
           },
         });
 
-        return new Response(gemRes.body.pipeThrough(transformStream), {
+        return new Response(wrapStreamWithMemorySave(gemRes.body.pipeThrough(transformStream), conversationId), {
           headers: {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
@@ -195,6 +242,35 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
           },
         });
       }
+      if (image) {
+        try {
+          const errBody = await gemRes.json();
+          lastVisionError = errBody?.error?.message || `Gemini respondió ${gemRes.status}`;
+        } catch {
+          lastVisionError = `Gemini respondió ${gemRes.status}`;
+        }
+      }
+    } else if (image && provider === "gemini" && !geminiKey) {
+      lastVisionError = "API Key de Gemini no configurada.";
+    }
+
+    // Imagen adjunta pero ningún proveedor de visión pudo procesarla: se
+    // informa el motivo real (el motor local/Flask no soporta imágenes),
+    // en vez de responder como si la imagen no existiera.
+    if (image && lastVisionError) {
+      const encoder = new TextEncoder();
+      const errStream = new ReadableStream({
+        start(controller) {
+          const text = `⚠️ **No se pudo analizar la imagen.** Motivo real: ${lastVisionError}\n\nEl motor local (Qwen 2.5 14B) no procesa imágenes. Selecciona Gemini u OpenAI con una API Key válida configurada, o usa Groq si tu cuenta tiene un modelo de visión activo.`;
+          const chunk = JSON.stringify({ choices: [{ delta: { content: text }, finish_reason: null }] });
+          controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      });
+      return new Response(errStream, {
+        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+      });
     }
 
     // --- FALLBACK LOCAL Flask (:5000) ---
@@ -208,6 +284,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
       if (flaskRes.ok) {
         const data = await flaskRes.json();
         const reply = data.reply || data.response || data.message || "Respuesta recibida del Motor Local";
+        await saveMemory(conversationId, "assistant", reply);
         const encoder = new TextEncoder();
         const fakeStream = new ReadableStream({
           start(controller) {
@@ -225,6 +302,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
 
     // --- FALLBACK FINAL INTELIGENTE SIN MARCADORES DE POSICIÓN ---
     const fallbackReply = `Estimado **Dr. Walther Parrado**, a la fecha de hoy (${currentDateTimeStr}), le confirmo que la infraestructura del VPS (31.97.145.8) se encuentra 100% operativa. He registrado su solicitud: "${message}". ¿En qué proyecto estratégico o análisis de Jowhalth Academy desea que profundicemos en este momento?`;
+    await saveMemory(conversationId, "assistant", fallbackReply);
     const encoder = new TextEncoder();
     const fakeStream = new ReadableStream({
       start(controller) {

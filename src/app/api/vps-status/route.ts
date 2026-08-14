@@ -27,7 +27,10 @@ export async function GET() {
   const supaStart = Date.now();
   try {
     const supaUrl = process.env.SUPABASE_INTERNAL_URL || "http://supabase-kong:8000";
-    const supaRes = await fetch(`${supaUrl}/rest/v1/`, {
+    // La raíz "/rest/v1/" cae en la ruta "openapi" de Kong (ACL admin-only,
+    // 403 para la key anon aunque Supabase esté sano) — hay que pedir una
+    // tabla real para caer en la ruta con ACL admin+anon.
+    const supaRes = await fetch(`${supaUrl}/rest/v1/cms_content?select=id&limit=1`, {
       headers: {
         apikey:
           "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg2NTU1MTI0LCJleHAiOjIxMDE5MTUxMjR9.gxsX0XhFm7uw7JjCJ5NB1g4K9Z8V_pRUkaLPHQo6Ps0",

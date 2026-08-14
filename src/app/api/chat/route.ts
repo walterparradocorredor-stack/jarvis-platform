@@ -1,13 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildToolContext } from "@/lib/toolsIntent";
+import { retrieveRelevantMemory, formatMemoryContext, saveMemory } from "@/lib/memory";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { message, history = [] } = body;
     let { provider = "local", apiKey } = body;
+    const conversationId = body.conversationId || "default";
+    // Si el cliente eligió explícitamente un proveedor (selector, o el fix
+    // automático de Cámara/Visión a Gemini), respetarlo — no dejar que la
+    // config global de Supabase lo pise por debajo.
+    const providerExplicit = Boolean(body.provider);
+
+    // Datos reales de Gmail/Calendar/Maps si el mensaje los requiere (MCP bridge del VPS)
+    const toolContext = message ? await buildToolContext(message) : null;
+    // Memoria real de conversaciones anteriores (pgvector), no solo la sesión actual
+    const memoryContext = message ? formatMemoryContext(await retrieveRelevantMemory(message)) : null;
+    if (message) await saveMemory(conversationId, "user", message);
 
     const now = new Date();
     const currentDateTimeStr = now.toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -29,7 +43,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
 3. Ecosistema Digital Real (VPS 31.97.145.8):
    - Marca Personal & Sitio Oficial: waltherparrado.com
    - Plataforma Educativa: Jowhalth Academy (PocketBase srv888548.hstgr.cloud)
-   - Plataforma JARVIS AI: jarvis.waltherparrado.com (Motor Híbrido Groq Llama 3.3 70B, Llama 3.1 Local en puerto 5000, Gemini y OpenAI)
+   - Plataforma JARVIS AI: jarvis.waltherparrado.com (Motor Híbrido Groq Llama 3.3 70B, Qwen 2.5 14B Local en puerto 5000, Gemini y OpenAI)
    - Facturación Electrónica DIAN UBL 2.1: Servidor Firmador B (52.205.110.85)
    - Agente WhatsApp Syspro IA: Integraciones Meta API activas para Natural Slim.
 4. Cuando el usuario solicite un Daily Briefing o Reporte, entrega un informe estratégico de alto nivel de 360 grados:
@@ -37,7 +51,15 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
    - Avance en Jowhalth Academy y Monetización con Wompi
    - Prioridades Ejecutivas y Recomendaciones de Inteligencia Artificial para el Día.
 5. Responde directamente al grano, en español impecable, sin rellenos robóticos.
+6. Si en este prompt aparece un bloque "[DATOS REALES DE ...]", son datos reales obtenidos en vivo de Gmail/Calendar/Maps del Dr. Walther vía las herramientas MCP del VPS: úsalos exclusivamente para responder sobre ese tema, JAMÁS inventes remitentes, citas, distancias o tiempos que no estén ahí. Si aparece un bloque "[... NO DISPONIBLE]" o "[MAPS: falta ...]", comunica el problema real con honestidad, sin fabricar datos.
+7. REGLA DE ORO ABSOLUTA: nunca confirmes que ejecutaste una acción (crear/enviar/agendar/guardar algo) a menos que un bloque de este prompt confirme explícitamente que ocurrió de verdad (ej. "[TAREA CREADA REALMENTE ...]"). Si el usuario pide una acción y no ves confirmación real de que se ejecutó, dile honestamente que esa acción todavía no está conectada o que no se pudo completar — nunca finjas haberla hecho.
+8. Si aparece un bloque "[MEMORIA REAL DE CONVERSACIONES ANTERIORES ...]", son cosas reales que el Dr. Walther dijo o que le respondiste en el pasado — úsalas para dar continuidad natural a la conversación cuando sean relevantes, sin repetirlas palabra por palabra ni mencionarlas si no vienen al caso.
 `;
+
+    const contextBlocks = [toolContext, memoryContext].filter(Boolean).join("\n\n");
+    const finalSystemPrompt = contextBlocks
+      ? `${DYNAMIC_JARVIS_SYSTEM_PROMPT}\n\n${contextBlocks}`
+      : DYNAMIC_JARVIS_SYSTEM_PROMPT;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "Mensaje requerido" }, { status: 400 });
@@ -60,7 +82,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
         const rows = await dbRes.json();
         const cfg = rows?.[0]?.content;
         if (cfg) {
-          if (cfg.activeProvider) {
+          if (!providerExplicit && cfg.activeProvider) {
             provider = cfg.activeProvider;
           }
           if (!apiKey) {
@@ -105,7 +127,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
           messages: [
             {
               role: "system",
-              content: DYNAMIC_JARVIS_SYSTEM_PROMPT,
+              content: finalSystemPrompt,
             },
             ...history,
             { role: "user", content: userContent },
@@ -121,6 +143,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
 
       const groqData = await groqRes.json();
       const reply = groqData.choices?.[0]?.message?.content || "Sin respuesta";
+      await saveMemory(conversationId, "assistant", reply);
       return NextResponse.json({ reply, provider: "groq" });
     }
 
@@ -153,7 +176,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
           messages: [
             {
               role: "system",
-              content: DYNAMIC_JARVIS_SYSTEM_PROMPT,
+              content: finalSystemPrompt,
             },
             ...history,
             { role: "user", content: userContent },
@@ -168,6 +191,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
 
       const oaiData = await oaiRes.json();
       const reply = oaiData.choices?.[0]?.message?.content || "Sin respuesta";
+      await saveMemory(conversationId, "assistant", reply);
       return NextResponse.json({ reply, provider: "openai" });
     }
 
@@ -182,7 +206,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
       }
 
       const { image } = body;
-      const parts: any[] = [{ text: `${DYNAMIC_JARVIS_SYSTEM_PROMPT}\n\nEl usuario pregunta: ${message}` }];
+      const parts: any[] = [{ text: `${finalSystemPrompt}\n\nEl usuario pregunta: ${message}` }];
 
       if (image && typeof image === "string" && image.startsWith("data:image")) {
         const [meta, base64Data] = image.split(",");
@@ -197,7 +221,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
       }
 
       const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -219,6 +243,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
       const geminiData = await geminiRes.json();
       const reply =
         geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta";
+      await saveMemory(conversationId, "assistant", reply);
       return NextResponse.json({ reply, provider: "gemini" });
     }
 
@@ -234,8 +259,10 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
 
       if (flaskRes.ok) {
         const flaskData = await flaskRes.json();
+        const reply = flaskData.reply || flaskData.response || flaskData.message;
+        await saveMemory(conversationId, "assistant", reply);
         return NextResponse.json({
-          reply: flaskData.reply || flaskData.response || flaskData.message,
+          reply,
           provider: "local",
         });
       }
