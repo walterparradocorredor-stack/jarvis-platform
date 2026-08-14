@@ -115,6 +115,19 @@ export async function createCalendarEvent(params: {
   }
 }
 
+export async function deleteCalendarEvent(eventId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/calendar/event/${encodeURIComponent(eventId)}`, {
+      method: "DELETE",
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json();
+    return res.ok && data.ok ? { ok: true } : { ok: false, error: data.error };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+}
+
 export interface RouteInfo {
   distance: string;
   duration: string;

@@ -2,6 +2,7 @@ import {
   getGmailSummary,
   getCalendarAgenda,
   createCalendarEvent,
+  deleteCalendarEvent,
   getMapsRoute,
   getPlacesNearby,
   getWeatherCurrent,
@@ -25,6 +26,8 @@ const GMAIL_RE = /\b(correo|correos|gmail|bandeja de entrada|inbox|email|e-?mail
 const CALENDAR_RE = /\b(agend\w*|calendario|cita|citas|reuni[oó]n|reuniones|calendar)\b/i;
 // Crear cita: "crea/agenda/programa una cita/reunión con X en Y a las Z"
 const CALENDAR_CREATE_RE = /\b(?:crea(?:r|me)?|agend(?:a|ar|ame)|programa(?:r|me)?)\s+(?:una\s+)?(?:cita|reuni[oó]n|evento)\b/i;
+// Cancelar/borrar cita: "cancela/borra/elimina mi cita/reunión con X"
+const CALENDAR_DELETE_RE = /\b(?:cancela(?:r)?|borra(?:r)?|elimina(?:r)?|quita(?:r)?)\s+(?:la\s+|el\s+|los\s+|las\s+|mi\s+|mis\s+|un\s+|una\s+|ese\s+|esa\s+|esta\s+|este\s+)*(?:cita|reuni[oó]n|evento)/i;
 const MAPS_RE = /\b(ruta|rutas|tr[aá]fico|c[oó]mo llegar|mapa|distancia|cu[aá]nto me demoro|cu[aá]nto (me )?tardo)\b/i;
 const ROUTE_PAIR_RE = /(?:de|desde)\s+(.+?)\s+(?:a|hasta|hacia)\s+(.+?)(?:[.?!]|$)/i;
 const WEATHER_RE = /\b(clima|pron[oó]stico|temperatura|va a llover|lluvia|est[aá] soleado)\b/i;
@@ -95,6 +98,66 @@ Mensaje: "${message}"`;
   }
 }
 
+interface EventMatch {
+  status: "found" | "ambiguous" | "not_found";
+  eventId?: string;
+  title?: string;
+  candidates?: { title: string; when: string }[];
+}
+
+/**
+ * Usa Gemini para identificar A CUÁL cita real (de la agenda de los próximos
+ * 7 días) se refiere el usuario cuando pide cancelarla. Nunca borra a ciegas:
+ * si hay más de un evento que podría ser ("Cita con Manuel" duplicada, por
+ * ejemplo), devuelve "ambiguous" para que Jarvis pregunte cuál en vez de
+ * adivinar y borrar la equivocada.
+ */
+async function matchEventToDelete(message: string): Promise<EventMatch | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const agenda = await getCalendarAgenda("week");
+  if (!agenda.ok || !agenda.items || agenda.items.length === 0) {
+    return { status: "not_found" };
+  }
+
+  const eventList = agenda.items
+    .map((e) => `- id="${e.id}" | "${e.title}" | ${e.start} a ${e.end}${e.location ? ` | ${e.location}` : ""}`)
+    .join("\n");
+
+  const prompt = `Estos son los eventos reales de la agenda de los próximos 7 días:
+${eventList}
+
+El usuario escribió: "${message}"
+
+¿A cuál de estos eventos se refiere para cancelarlo/borrarlo? Responde SOLO con un JSON válido, sin texto adicional:
+- Si hay EXACTAMENTE un evento que coincide claramente: {"status": "found", "eventId": "...", "title": "..."}
+- Si hay dos o más eventos que podrían ser (ej. título repetido, referencia ambigua): {"status": "ambiguous", "candidates": [{"title": "...", "when": "..."}, ...]}
+- Si ningún evento coincide con lo que pide: {"status": "not_found"}`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return null;
+    return JSON.parse(text) as EventMatch;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Detecta si el mensaje del usuario necesita datos reales de Gmail/Calendar/Maps
  * y devuelve un bloque de contexto para inyectar en el system prompt, con
@@ -113,7 +176,26 @@ export async function buildToolContext(message: string): Promise<string | null> 
     );
   }
 
-  if (CALENDAR_CREATE_RE.test(message)) {
+  if (CALENDAR_DELETE_RE.test(message)) {
+    const match = await matchEventToDelete(message);
+    if (!match || match.status === "not_found") {
+      blocks.push(
+        `[NO SE ENCONTRÓ LA CITA A BORRAR] No se encontró ningún evento real en la agenda que coincida con lo que pide el usuario. Dile esto con honestidad y pregúntale el nombre/fecha exacta — no inventes que borraste algo.`
+      );
+    } else if (match.status === "ambiguous") {
+      const list = (match.candidates || []).map((c) => `- "${c.title}" (${c.when})`).join("\n");
+      blocks.push(
+        `[VARIAS CITAS COINCIDEN, SE NECESITA ACLARACIÓN]\n${list}\nHay más de una cita real que podría ser la que el usuario quiere borrar. Pregúntale cuál de estas exactamente (por fecha/hora) — NO borres ninguna todavía, no asumas cuál.`
+      );
+    } else {
+      const result = await deleteCalendarEvent(match.eventId!);
+      blocks.push(
+        result.ok
+          ? `[CITA BORRADA REALMENTE DE GOOGLE CALENDAR: "${match.title}"] Confirma al usuario que esa cita fue eliminada de verdad.`
+          : `[NO SE PUDO BORRAR LA CITA] Error real: "${result.error}". Informa este error tal cual — JAMÁS confirmes que la cita se borró si esto falló.`
+      );
+    }
+  } else if (CALENDAR_CREATE_RE.test(message)) {
     const details = await extractEventDetails(message);
     if (!details) {
       blocks.push(
