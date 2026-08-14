@@ -37,7 +37,7 @@ export default function ChatInterface({
       id: "1",
       sender: "jarvis",
       content:
-        "¡Bienvenido, **Dr. Walther Parrado**! Soy **JARVIS**, la Inteligencia Artificial Corporativa de su Ecosistema Digital (**JyM Tech Solutions & Jowhalth Academy**). ¿En qué proyecto o análisis estratégico puedo asistirle el día de hoy?",
+        "Hola, soy **JARVIS**. Podés hablarme o escribirme — ¿en qué te ayudo hoy?",
       timestamp: "08:00 AM",
       provider: activeProvider,
     },
