@@ -49,6 +49,28 @@ export default function VoiceModule({
 
   const ttsAudioElRef = useRef<HTMLAudioElement | null>(null);
   const ttsAudioCtxRef = useRef<AudioContext | null>(null);
+  const audioUnlockedRef = useRef(false);
+
+  // Los navegadores móviles solo permiten reproducir audio si el play() ocurre
+  // dentro del mismo gesto de toque del usuario. La respuesta de JARVIS llega
+  // después de un fetch (STT + LLM + TTS), ya fuera de ese gesto — sin esto,
+  // el audio queda mudo en el celular aunque el código "funcione". Se llama
+  // de forma SÍNCRONA, sin await antes, al inicio de cada botón de voz.
+  const unlockAudioForMobile = useCallback(() => {
+    if (audioUnlockedRef.current) return;
+    audioUnlockedRef.current = true;
+    try {
+      const ctx = ttsAudioCtxRef.current || new AudioContext();
+      ttsAudioCtxRef.current = ctx;
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    } catch {}
+    try {
+      const silent = new Audio(
+        "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
+      );
+      silent.play().catch(() => {});
+    } catch {}
+  }, []);
 
   const bargeInStreamRef = useRef<MediaStream | null>(null);
   const bargeInRafRef = useRef<number | null>(null);
@@ -248,6 +270,7 @@ export default function VoiceModule({
 
   // ─── BOTÓN MODO CONVERSACIÓN CONTINUA ───────────────────────────────────────
   const toggleConvoMode = useCallback(async () => {
+    unlockAudioForMobile();
     if (isConvoMode) {
       setIsConvoMode(false);
       convoModeRef.current = false;
@@ -264,16 +287,17 @@ export default function VoiceModule({
       setIsMuted(false);
       await startRecording();
     }
-  }, [isConvoMode, startRecording, stopBargeInMonitor]);
+  }, [isConvoMode, startRecording, stopBargeInMonitor, unlockAudioForMobile]);
 
   const toggleRecording = useCallback(async () => {
+    unlockAudioForMobile();
     if (isConvoMode) return;
     if (voiceState === "listening") {
       if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
     } else if (voiceState === "idle") {
       await startRecording();
     }
-  }, [voiceState, isConvoMode, startRecording]);
+  }, [voiceState, isConvoMode, startRecording, unlockAudioForMobile]);
 
   // ─── TTS FLUIDO: Google Cloud Neural2 con fallback a voz del navegador ──────
   const bestBrowserVoice = useCallback(() => {
@@ -486,6 +510,7 @@ export default function VoiceModule({
   }, [stopBargeInMonitor]);
 
   const toggleMute = () => {
+    unlockAudioForMobile();
     if (!isMuted) {
       ttsAudioElRef.current?.pause();
       window.speechSynthesis?.cancel();
