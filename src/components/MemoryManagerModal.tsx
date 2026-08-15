@@ -26,22 +26,22 @@ const INITIAL_MEMORIES: MemoryItem[] = [
   },
   {
     id: "mem-2",
-    topic: "JyM Tech Solutions",
-    content: "Empresa desarrolladora del ecosistema digital, liderada por Manuel Madrid (CEO & Tech Lead). Infraestructura activa en VPS 31.97.145.8.",
+    topic: "zetugc.com",
+    content: "Proyecto de contenido UGC y automatizaciones n8n del ecosistema digital del Dr. Walther Parrado.",
     category: "empresa",
     timestamp: "2026-08-08",
   },
   {
     id: "mem-3",
-    topic: "Facturación Electrónica DIAN UBL 2.1",
-    content: "Servidor firmador activo en IP 52.205.110.85, ambiente de habilitación y emisión de facturas XML firmadas.",
+    topic: "Rentun Group",
+    content: "Ecosistema comercial Rentun Group, parte del portafolio de proyectos del Dr. Walther Parrado.",
     category: "sistema",
     timestamp: "2026-08-08",
   },
   {
     id: "mem-4",
     topic: "Jowhalth Academy - Plataforma Educativa",
-    content: "Cursos y programas ejecutivos sobre PocketBase en srv888548.hstgr.cloud e integración de pagos con Wompi.",
+    content: "Cursos y programas ejecutivos, integración de pagos con Wompi.",
     category: "academico",
     timestamp: "2026-08-08",
   },
@@ -154,7 +154,7 @@ export default function MemoryManagerModal({ isOpen, onClose }: MemoryManagerMod
                 className="w-full px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 focus:border-cyan-500"
               >
                 <option value="contexto">Contexto Walther Parrado</option>
-                <option value="empresa">JyM Tech Solutions</option>
+                <option value="empresa">Ecosistema Digital</option>
                 <option value="academico">Jowhalth Academy</option>
                 <option value="sistema">Sistema & Infraestructura</option>
               </select>

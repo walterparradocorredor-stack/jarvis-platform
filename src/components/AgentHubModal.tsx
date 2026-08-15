@@ -24,26 +24,26 @@ const AGENTS: AgentItem[] = [
     name: "JARVIS Core Asistente",
     role: "Inteligencia Corporativa 360° para Walther Parrado",
     status: "active",
-    engine: "Groq Llama 3.3 70B / GPT-4o",
+    engine: "Groq OpenAI GPT-OSS 120B / GPT-4o",
     server: "VPS 31.97.145.8:3080",
     iconColor: "text-cyan-400 border-cyan-500/40 bg-cyan-950/80",
   },
   {
     id: "2",
-    name: "Agente WhatsApp Syspro",
-    role: "Atención Automatizada Clientes (Natural Slim & JyM)",
+    name: "Agente zetugc.com",
+    role: "Contenido UGC y Automatizaciones",
     status: "active",
-    engine: "Meta API + Python Engine",
-    server: "Syspro AWS 18.225.19.182",
+    engine: "n8n + Meta API",
+    server: "VPS 31.97.145.8",
     iconColor: "text-emerald-400 border-emerald-500/40 bg-emerald-950/80",
   },
   {
     id: "3",
-    name: "Agente Facturación DIAN UBL 2.1",
-    role: "Firma y Validación de XML Factura Electrónica",
+    name: "Agente Rentun Group",
+    role: "Ecosistema Comercial Rentun Group",
     status: "active",
-    engine: "Java Signer + UBL 2.1 Engine",
-    server: "DIAN Firmador 52.205.110.85",
+    engine: "Supabase + Vector RAG",
+    server: "VPS 31.97.145.8",
     iconColor: "text-amber-400 border-amber-500/40 bg-amber-950/80",
   },
   {
@@ -86,7 +86,7 @@ export default function AgentHubModal({ isOpen, onClose }: AgentHubModalProps) {
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400">
-                Ecosistema Digital JyM Tech Solutions & Dr. Walther Parrado Corredor
+                Ecosistema Digital Dr. Walther Parrado Corredor
               </p>
             </div>
           </div>

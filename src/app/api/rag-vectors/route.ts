@@ -9,13 +9,13 @@ export async function GET(request: NextRequest) {
     let realNodes = [
       { id: "1", label: "VPS 31.97.145.8", sublabel: "Docker Core Hostinger", category: "vps", similarity: 0.985 },
       { id: "2", label: "Supabase pgvector", sublabel: "Vector HNSW (1536-d)", category: "rag", similarity: 0.992 },
-      { id: "3", label: "Groq Llama 3.3 70B", sublabel: "Engine Fast SSE", category: "ai", similarity: 0.945 },
+      { id: "3", label: "Groq OpenAI GPT-OSS 120B", sublabel: "Engine Fast SSE", category: "ai", similarity: 0.945 },
       { id: "4", label: "Dr. Walther Parrado", sublabel: "Perfil Director Jowhalth", category: "user", similarity: 0.978 },
-      { id: "5", label: "Manuel Madrid CEO", sublabel: "Tech Lead & Devops", category: "user", similarity: 0.965 },
-      { id: "6", label: "Jowhalth Academy", sublabel: "PocketBase DB srv888548", category: "user", similarity: 0.924 },
-      { id: "7", label: "DIAN UBL 2.1 Signer", sublabel: "Firmador XML 52.205.110.85", category: "dian", similarity: 0.912 },
+      { id: "5", label: "waltherparrado.com", sublabel: "Sitio Oficial", category: "rag", similarity: 0.965 },
+      { id: "6", label: "Jowhalth Academy", sublabel: "Plataforma Educativa", category: "user", similarity: 0.924 },
+      { id: "7", label: "zetugc.com", sublabel: "Proyecto UGC & n8n", category: "vps", similarity: 0.912 },
       { id: "8", label: "OpenAI GPT-4o Mini", sublabel: "Multimodal Vision Engine", category: "ai", similarity: 0.938 },
-      { id: "9", label: "WhatsApp Syspro", sublabel: "Meta API Natural Slim", category: "rag", similarity: 0.895 },
+      { id: "9", label: "Rentun Group", sublabel: "Ecosistema Comercial", category: "user", similarity: 0.895 },
       { id: "10", label: "Gemini 1.5 Flash", sublabel: "Google Vision SSE", category: "ai", similarity: 0.905 },
     ];
 

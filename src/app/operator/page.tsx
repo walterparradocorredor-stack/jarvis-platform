@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Navbar from "@/components/Navbar";
+import JarvisHeader from "@/components/JarvisHeader";
 import TechnicalSidebar from "@/components/TechnicalSidebar";
 import ProviderSelector from "@/components/ProviderSelector";
 import ChatInterface from "@/components/ChatInterface";
@@ -45,7 +45,7 @@ export default function OperatorPage() {
   if (!isAuthenticated) {
     return (
       <div className="flex flex-col h-screen bg-[#050811] overflow-hidden">
-        <Navbar />
+        <JarvisHeader />
         <main className="flex-1 flex items-center justify-center p-4 relative">
           <div className="absolute top-[20%] left-[30%] w-[400px] h-[400px] bg-cyan-600/10 blur-[150px] rounded-full pointer-events-none" />
 
@@ -98,11 +98,11 @@ export default function OperatorPage() {
 
   return (
     <div className="flex flex-col h-screen bg-[#050811] overflow-hidden">
-      {/* Navbar Superior */}
-      <Navbar />
+      {/* Header Superior Compacto */}
+      <JarvisHeader />
 
       {/* Split View Layout para Operador */}
-      <div className="flex-1 flex flex-col lg:flex-row h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
         {/* Sidebar Técnico con Telemetría & Módulos */}
         <TechnicalSidebar activeProvider={provider} />
 

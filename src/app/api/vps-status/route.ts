@@ -27,15 +27,17 @@ export async function GET() {
   const supaStart = Date.now();
   try {
     const supaUrl = process.env.SUPABASE_INTERNAL_URL || "http://supabase-kong:8000";
-    const supaRes = await fetch(`${supaUrl}/rest/v1/`, {
-      headers: {
-        apikey:
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE",
-      },
+    const supaAnonKey =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE";
+    // OJO: /rest/v1/ (raíz, sin tabla) devuelve 403 con la anon key — no es
+    // que Supabase esté caído, PostgREST simplemente no expone el root path
+    // sin una tabla. Se usa una tabla real y liviana para el health check.
+    const supaRes = await fetch(`${supaUrl}/rest/v1/cms_content?select=id&limit=1`, {
+      headers: { apikey: supaAnonKey, Authorization: `Bearer ${supaAnonKey}` },
       signal: AbortSignal.timeout(3000),
     });
     results.supabase = {
-      status: supaRes.ok || supaRes.status === 404 ? "UP" : "ERROR",
+      status: supaRes.ok ? "UP" : "ERROR",
       latencyMs: Date.now() - supaStart,
     };
   } catch {

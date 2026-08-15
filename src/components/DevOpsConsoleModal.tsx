@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Terminal as TerminalIcon, Play, RefreshCw, X, ShieldCheck, CheckCircle2, AlertTriangle, Server, Cpu, Activity } from "lucide-react";
+import GoogleEcosystemStatus from "@/components/GoogleEcosystemStatus";
 
 interface DevOpsConsoleModalProps {
   isOpen: boolean;
@@ -98,6 +99,14 @@ export default function DevOpsConsoleModal({ isOpen, onClose }: DevOpsConsoleMod
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900">
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Ecosistema Google — Cápsulas de Estado */}
+        <div className="p-3 bg-slate-900/40 border-b border-slate-800/80">
+          <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-2">
+            Ecosistema Google & RAG
+          </div>
+          <GoogleEcosystemStatus />
         </div>
 
         {/* Panel de Botones Rápidos */}

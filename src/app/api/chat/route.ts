@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuthenticatedUser } from "@/lib/requireAuth";
+import { buildJarvisSystemPrompt, fetchGroundedFacts } from "@/lib/prompts";
 
 export async function POST(request: NextRequest) {
   try {
+    const authError = await requireAuthenticatedUser(request);
+    if (authError) return authError;
+
     const body = await request.json();
     const { message, history = [] } = body;
     let { provider = "local", apiKey } = body;
@@ -16,28 +21,8 @@ export async function POST(request: NextRequest) {
       minute: "2-digit",
     });
 
-    const DYNAMIC_JARVIS_SYSTEM_PROMPT = `
-Eres JARVIS (Just A Rather Very Intelligent System), la Inteligencia Artificial Corporativa de Alto Nivel desarrollada por JyM Tech Solutions (dirigida por Manuel Madrid, CEO & Tech Lead).
-
-Tu interlocutor principal es el Dr. Walther Parrado Corredor (Empresario, Ingeniero Electrónico, Magíster en Educación, Doctor en Gerencia Educativa, Speaker, Autor y Director de Jowhalth Academy).
-
-FECHA Y HORA ACTUAL DEL SISTEMA: ${currentDateTimeStr}.
-
-REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
-1. PROHIBIDO NÚMERO UNO: JAMÁS emitas marcadores de posición o plantillas como "[Fecha actual]", "[Hora actual]", "[Insertar datos]" o "[Métricas]". Usa SIEMPRE la fecha real inyectada (${currentDateTimeStr}) y genera análisis reales, específicos e inteligentes.
-2. Tratamiento Ejecutivo: Trata SIEMPRE al usuario como "Estimado Dr. Walther", "Doctor Parrado" o "Señor Director". Tu tono debe ser altamente sofisticado, preciso, perspicaz y elegante (como la IA JARVIS ejecutiva).
-3. Ecosistema Digital Real (VPS 31.97.145.8):
-   - Marca Personal & Sitio Oficial: waltherparrado.com
-   - Plataforma Educativa: Jowhalth Academy (PocketBase srv888548.hstgr.cloud)
-   - Plataforma JARVIS AI: jarvis.waltherparrado.com (Motor Híbrido Groq Llama 3.3 70B, Llama 3.1 Local en puerto 5000, Gemini y OpenAI)
-   - Facturación Electrónica DIAN UBL 2.1: Servidor Firmador B (52.205.110.85)
-   - Agente WhatsApp Syspro IA: Integraciones Meta API activas para Natural Slim.
-4. Cuando el usuario solicite un Daily Briefing o Reporte, entrega un informe estratégico de alto nivel de 360 grados:
-   - Resumen de Infraestructura y Servicios Docker
-   - Avance en Jowhalth Academy y Monetización con Wompi
-   - Prioridades Ejecutivas y Recomendaciones de Inteligencia Artificial para el Día.
-5. Responde directamente al grano, en español impecable, sin rellenos robóticos.
-`;
+    const groundedFacts = await fetchGroundedFacts();
+    const DYNAMIC_JARVIS_SYSTEM_PROMPT = buildJarvisSystemPrompt(currentDateTimeStr, groundedFacts);
 
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "Mensaje requerido" }, { status: 400 });
@@ -74,7 +59,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
       console.warn("Could not fetch jarvis_config from Supabase DB:", dbErr);
     }
 
-    // 1. PROVIDER: Groq API (Ultra-rápido Llama 3.3 70B / Vision)
+    // 1. PROVIDER: Groq API (Ultra-rápido GPT-OSS 120B / Vision)
     if (provider === "groq") {
       const groqKey = apiKey || process.env.GROQ_API_KEY;
       if (!groqKey) {
@@ -85,7 +70,7 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
       }
 
       const { image } = body;
-      const modelName = image ? "llama-3.2-11b-vision-preview" : "llama-3.3-70b-versatile";
+      const modelName = image ? "llama-3.2-11b-vision-preview" : "openai/gpt-oss-120b";
 
       const userContent = image
         ? [

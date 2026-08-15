@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Send, User, Sparkles, Check, Copy, Brain, Download, Cpu, Database, Bot, Terminal } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
+import { Send, User, Sparkles, Check, Copy } from "lucide-react";
 import { ChatMessage, LLMProvider } from "@/lib/jarvisApi";
+import { supabase } from "@/lib/supabase";
 import MemoryNeuralNetwork from "@/components/MemoryNeuralNetwork";
 import VoiceModule from "@/components/VoiceModule";
 import ImageUploadModule from "@/components/ImageUploadModule";
@@ -22,21 +23,27 @@ interface ChatInterfaceProps {
 
 type OrbState = "idle" | "listening" | "thinking" | "speaking";
 
-export default function ChatInterface({
+export interface ChatInterfaceHandle {
+  openRag: () => void;
+  openAgents: () => void;
+  openDevOps: () => void;
+  exportChat: () => void;
+}
+
+const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(function ChatInterface({
   currentProvider = "groq",
   activeApiKey = "",
   isOperatorView = false,
   jarvisImageSrc,
-}: ChatInterfaceProps) {
-  const [activeProvider, setActiveProvider] = useState<LLMProvider>(currentProvider);
+}, ref) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
       sender: "jarvis",
       content:
-        "¡Bienvenido, **Dr. Walther Parrado**! Soy **JARVIS**, la Inteligencia Artificial Corporativa de su Ecosistema Digital (**JyM Tech Solutions & Jowhalth Academy**). ¿En qué proyecto o análisis estratégico puedo asistirle el día de hoy?",
+        "¡Bienvenido, **Dr. Walther Parrado**! Soy **JARVIS**, la Inteligencia Artificial Corporativa de su Ecosistema Digital (**Dr. Walther Parrado & Jowhalth Academy**). ¿En qué proyecto o análisis estratégico puedo asistirle el día de hoy?",
       timestamp: "08:00 AM",
-      provider: activeProvider,
+      provider: currentProvider,
     },
   ]);
 
@@ -46,7 +53,7 @@ export default function ChatInterface({
   const [orbState, setOrbState] = useState<OrbState>("idle");
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [showNeuralNet, setShowNeuralNet] = useState(true);
+  const [showNeuralNet, setShowNeuralNet] = useState(false);
   const [showMemoryModal, setShowMemoryModal] = useState(false);
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showDevOpsModal, setShowDevOpsModal] = useState(false);
@@ -95,7 +102,7 @@ export default function ChatInterface({
           sender: "jarvis",
           content: "",
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          provider: activeProvider,
+          provider: currentProvider,
         },
       ]);
 
@@ -108,12 +115,21 @@ export default function ChatInterface({
           content: m.content,
         }));
 
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
         const res = await fetch("/api/stream", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token
+              ? { Authorization: `Bearer ${session.access_token}` }
+              : {}),
+          },
           body: JSON.stringify({
             message: userText || "Analizar la imagen adjunta.",
-            provider: activeProvider,
+            provider: currentProvider,
             apiKey: activeApiKey,
             image: attachedImage || undefined,
             history,
@@ -178,7 +194,7 @@ export default function ChatInterface({
         setOrbState("idle");
       }
     },
-    [inputMessage, selectedImage, isLoading, activeProvider, activeApiKey, messages]
+    [inputMessage, selectedImage, isLoading, currentProvider, activeApiKey, messages]
   );
 
   useEffect(() => {
@@ -198,6 +214,13 @@ export default function ChatInterface({
     URL.revokeObjectURL(url);
   }, [messages]);
 
+  useImperativeHandle(ref, () => ({
+    openRag: () => setShowNeuralNet(true),
+    openAgents: () => setShowAgentModal(true),
+    openDevOps: () => setShowDevOpsModal(true),
+    exportChat: handleExport,
+  }));
+
   const handleSlashSelect = useCallback(
     (cmd: SlashCommand) => {
       setShowSlash(false);
@@ -213,7 +236,7 @@ export default function ChatInterface({
               hour: "2-digit",
               minute: "2-digit",
             }),
-            provider: activeProvider,
+            provider: currentProvider,
           },
         ]);
       } else if (cmd.action === "export") {
@@ -226,7 +249,7 @@ export default function ChatInterface({
         handleSendRef.current(cmd.prompt);
       }
     },
-    [activeProvider, handleExport]
+    [currentProvider, handleExport]
   );
 
   const handleCopy = (id: string, text: string) => {
@@ -240,103 +263,12 @@ export default function ChatInterface({
       {/* Fondo Neón */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(6,182,212,0.15),rgba(255,255,255,0))] pointer-events-none" />
 
-      {/* Top Controls Bar */}
-      <div className="px-4 py-2 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur-md flex items-center justify-between z-20 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowNeuralNet(!showNeuralNet)}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all ${
-              showNeuralNet
-                ? "bg-cyan-950/90 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10"
-                : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <Brain className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">
-              {showNeuralNet ? "Ocultar Memoria RAG" : "Ver Memoria RAG"}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setShowMemoryModal(true)}
-            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/40 transition-all"
-            title="Abrir gestor de vectores de memoria RAG"
-          >
-            <Database className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden md:inline">Vectores RAG</span>
-          </button>
-
-          <button
-            onClick={() => setShowAgentModal(true)}
-            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-emerald-300 hover:border-emerald-500/40 transition-all"
-            title="Monitoreo de Agentes IA Corporativos"
-          >
-            <Bot className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden md:inline">Agentes IA</span>
-          </button>
-
-          <button
-            onClick={() => setShowDevOpsModal(true)}
-            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-amber-300 hover:border-amber-500/40 transition-all"
-            title="Consola DevOps Manuel (CEO)"
-          >
-            <Terminal className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden lg:inline">DevOps</span>
-          </button>
-
-          <button
-            onClick={handleExport}
-            title="Exportar conversación como Markdown"
-            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 transition-all"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Exportar</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Selector Dinámico de Motor LLM */}
-          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 py-1 text-xs shadow-inner">
-            <Cpu className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <select
-              value={activeProvider}
-              onChange={(e) => setActiveProvider(e.target.value as LLMProvider)}
-              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
-            >
-              <option value="groq" className="bg-slate-950 text-slate-200">
-                ⚡ Groq Llama 3.3 (70B Fast)
-              </option>
-              <option value="openai" className="bg-slate-950 text-slate-200">
-                🧠 OpenAI GPT-4o Mini
-              </option>
-              <option value="gemini" className="bg-slate-950 text-slate-200">
-                💎 Gemini 1.5 Flash Vision
-              </option>
-              <option value="local" className="bg-slate-950 text-slate-200">
-                🔒 Llama 3.1 Local (VPS :5000)
-              </option>
-            </select>
-          </div>
-
-          <VoiceModule
-            onInterimResult={(text) => setInputMessage(text)}
-            onSpeechResult={(text) => {
-              setInputMessage(text);
-              setOrbState("listening");
-              handleSendRef.current(text);
-            }}
-            lastJarvisMessage={lastJarvisReply}
-            autoSpeak={false}
-          />
-        </div>
-      </div>
-
-      {/* Contenedor Principal: Chat + Panel Lateral RAG */}
+      {/* Contenedor Principal: Chat a ancho completo (el grafo RAG vive en un drawer aparte; los
+          controles de Vectores RAG/Agentes IA/DevOps/Exportar viven en el header, no aquí) */}
       <div className="flex-1 flex overflow-hidden relative z-10">
-        {/* Columna Principal del Chat */}
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           {/* Area de Mensajes */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 max-w-4xl mx-auto w-full">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 w-full max-w-full">
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -360,7 +292,7 @@ export default function ChatInterface({
                 )}
 
                 {/* Burbuja */}
-                <div className="max-w-[85%] sm:max-w-[75%] space-y-1">
+                <div className="w-full max-w-full space-y-1">
                   <div className="flex items-center gap-2 px-1">
                     <span className="text-[11px] font-bold text-slate-400">
                       {msg.sender === "user"
@@ -424,7 +356,7 @@ export default function ChatInterface({
                 <JarvisOrb state="thinking" size={36} imageSrc={jarvisImageSrc} />
                 <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl rounded-tl-none p-4 text-xs text-cyan-300 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                  <span>JARVIS conectando con {activeProvider.toUpperCase()}...</span>
+                  <span>JARVIS conectando con {currentProvider.toUpperCase()}...</span>
                 </div>
               </div>
             )}
@@ -434,29 +366,35 @@ export default function ChatInterface({
 
           {/* Input Fijo */}
           <div className="border-t border-slate-800/80 bg-[#050811]/95 backdrop-blur-2xl p-4 relative z-20">
-            <div className="max-w-4xl mx-auto flex flex-col gap-2">
+            <div className="w-full max-w-full flex flex-col gap-2">
               {/* Prompts Sugeridos */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
                 {[
                   {
                     label: "📅 Daily Briefing",
                     prompt:
-                      "Generar un Daily Briefing Ejecutivo matutino para el Dr. Walther Parrado con métricas, agenda y estado del VPS.",
+                      "Generar un Daily Briefing Ejecutivo para el Dr. Walther Parrado usando únicamente los datos reales disponibles.",
                   },
                   {
-                    label: "📊 Reporte Ejecutivo",
-                    prompt:
-                      "Generar un reporte ejecutivo integral del Ecosistema Digital y la plataforma Jowhalth Academy para el Dr. Walther Parrado.",
+                    label: "📧 Correos Gmail",
+                    prompt: "¿Cuál es el estado real de mi bandeja de Gmail ahora mismo?",
                   },
                   {
-                    label: "🖥️ Infraestructura VPS",
-                    prompt:
-                      "Proporcionar un resumen ejecutivo de la infraestructura activa del VPS 31.97.145.8 y las plataformas en producción.",
+                    label: "🗓️ Agenda Calendar",
+                    prompt: "¿Cuál es mi próxima cita real registrada en Calendar?",
                   },
                   {
-                    label: "🤖 Agentes IA",
+                    label: "🗺️ Rutas y Tráfico",
+                    prompt: "¿Tienes acceso en vivo a rutas y tráfico con Google Maps en este momento?",
+                  },
+                  {
+                    label: "📈 SEO & Tráfico Web",
+                    prompt: "Resume el estado real de SEO de waltherparrado.com que tengas disponible.",
+                  },
+                  {
+                    label: "✅ Mis Tareas Pendientes",
                     prompt:
-                      "Resumir el estado completo de los 5 Agentes IA Corporativos activos en la red JyM.",
+                      "Con base en el estado real del ecosistema (Wompi, Meta Ads, Gmail, Calendar), ¿cuáles son mis prioridades ejecutivas de hoy?",
                   },
                 ].map((item, idx) => (
                   <button
@@ -489,6 +427,17 @@ export default function ChatInterface({
                   <ImageUploadModule
                     onImageSelected={setSelectedImage}
                     selectedImage={selectedImage}
+                  />
+
+                  <VoiceModule
+                    onInterimResult={(text) => setInputMessage(text)}
+                    onSpeechResult={(text) => {
+                      setInputMessage(text);
+                      setOrbState("listening");
+                      handleSendRef.current(text);
+                    }}
+                    lastJarvisMessage={lastJarvisReply}
+                    autoSpeak={false}
                   />
 
                   <input
@@ -526,15 +475,28 @@ export default function ChatInterface({
           </div>
         </div>
 
-        {/* Panel Lateral Derecho: Red Neuronal de Memoria RAG */}
-        {showNeuralNet && (
-          <MemoryNeuralNetwork
-            isActive={isLoading}
-            activeQuery={inputMessage}
-            onClose={() => setShowNeuralNet(false)}
-          />
-        )}
       </div>
+
+      {/* Modal centrado premium: Grafo de Vectores de Memoria RAG */}
+      {showNeuralNet && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setShowNeuralNet(false)}
+          />
+          <div className="relative w-[80vw] max-w-6xl h-[80vh] animate-fadeIn">
+            <MemoryNeuralNetwork
+              isActive={isLoading}
+              activeQuery={inputMessage}
+              onClose={() => setShowNeuralNet(false)}
+              onManage={() => {
+                setShowNeuralNet(false);
+                setShowMemoryModal(true);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Modals de Extensión */}
       <MemoryManagerModal isOpen={showMemoryModal} onClose={() => setShowMemoryModal(false)} />
@@ -542,4 +504,6 @@ export default function ChatInterface({
       <DevOpsConsoleModal isOpen={showDevOpsModal} onClose={() => setShowDevOpsModal(false)} />
     </div>
   );
-}
+});
+
+export default ChatInterface;

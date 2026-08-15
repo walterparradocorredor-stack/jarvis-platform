@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import FooterSignature from "@/components/FooterSignature";
+import SeoSchema from "@/components/SeoSchema";
 
 export const metadata: Metadata = {
   title: "JARVIS AI Platform — Asistente de IA Corporativa | JyM Tech Solutions",
@@ -23,10 +23,10 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-[#050811] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-slate-950">
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0">
           {children}
         </div>
-        <FooterSignature />
+        <SeoSchema />
       </body>
     </html>
   );

@@ -154,7 +154,7 @@ export default function ProviderSelector({
               0% RAM VPS
             </span>
           </div>
-          <p className="text-[10px] text-slate-400 line-clamp-1">Llama 3.3 70B Ultra Rápido</p>
+          <p className="text-[10px] text-slate-400 line-clamp-1">GPT-OSS 120B Ultra Rápido</p>
         </button>
 
         {/* OPENAI */}

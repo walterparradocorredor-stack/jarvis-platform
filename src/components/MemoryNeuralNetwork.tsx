@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Brain, Zap, Maximize2, Minimize2, EyeOff, Activity, RefreshCw } from "lucide-react";
+import { Brain, Zap, Activity, RefreshCw, Database } from "lucide-react";
 
 interface Node {
   id: number;
@@ -31,6 +31,7 @@ interface MemoryNeuralNetworkProps {
   isActive?: boolean;
   activeQuery?: string;
   onClose?: () => void;
+  onManage?: () => void;
 }
 
 const CATEGORY_COLORS: Record<string, { main: string; glow: string; bg: string }> = {
@@ -45,6 +46,7 @@ export default function MemoryNeuralNetwork({
   isActive = false,
   activeQuery = "",
   onClose,
+  onManage,
 }: MemoryNeuralNetworkProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [activeMemoryCount, setActiveMemoryCount] = useState(6);
@@ -63,13 +65,14 @@ export default function MemoryNeuralNetwork({
       if (res.ok) {
         const data = await res.json();
         if (data.nodes && Array.isArray(data.nodes)) {
+          const cols = 4;
           const loadedNodes: Node[] = data.nodes.map((item: any, idx: number) => ({
             id: idx,
-            x: 40 + (idx % 2) * 150 + (Math.random() - 0.5) * 20,
-            y: 40 + Math.floor(idx / 2) * 65 + (Math.random() - 0.5) * 15,
-            vx: (Math.random() - 0.5) * 0.25,
-            vy: (Math.random() - 0.5) * 0.25,
-            radius: 5,
+            x: 120 + (idx % cols) * 240 + (Math.random() - 0.5) * 30,
+            y: 100 + Math.floor(idx / cols) * 160 + (Math.random() - 0.5) * 30,
+            vx: (Math.random() - 0.5) * 0.3,
+            vy: (Math.random() - 0.5) * 0.3,
+            radius: 7,
             label: item.label,
             sublabel: item.sublabel,
             category: item.category as any,
@@ -82,7 +85,7 @@ export default function MemoryNeuralNetwork({
           for (let i = 0; i < loadedNodes.length; i++) {
             for (let j = i + 1; j < loadedNodes.length; j++) {
               const dist = Math.hypot(loadedNodes[i].x - loadedNodes[j].x, loadedNodes[i].y - loadedNodes[j].y);
-              if (dist < 140) {
+              if (dist < 300) {
                 edges.push({
                   source: i,
                   target: j,
@@ -177,8 +180,8 @@ export default function MemoryNeuralNetwork({
         n.x += n.vx;
         n.y += n.vy;
 
-        if (n.x < 30 || n.x > canvas.width - 120) n.vx *= -1;
-        if (n.y < 30 || n.y > canvas.height - 30) n.vy *= -1;
+        if (n.x < 40 || n.x > canvas.width - 200) n.vx *= -1;
+        if (n.y < 40 || n.y > canvas.height - 50) n.vy *= -1;
 
         if (n.glowProgress > 0) {
           n.glowProgress = Math.max(0, n.glowProgress - 0.004);
@@ -244,21 +247,21 @@ export default function MemoryNeuralNetwork({
 
         // Etiquetas
         ctx.save();
-        ctx.font = n.active ? "bold 10px Outfit, sans-serif" : "9.5px Outfit, sans-serif";
+        ctx.font = n.active ? "bold 14px Outfit, sans-serif" : "13px Outfit, sans-serif";
         ctx.fillStyle = n.active ? "#ffffff" : "#cbd5e1";
         ctx.shadowColor = n.active ? color.glow : "transparent";
         ctx.shadowBlur = n.active ? 6 : 0;
-        ctx.fillText(n.label, n.x + 10, n.y + 3);
+        ctx.fillText(n.label, n.x + 14, n.y + 4);
 
-        ctx.font = "8.5px JetBrains Mono, monospace";
+        ctx.font = "11px JetBrains Mono, monospace";
         ctx.fillStyle = n.active ? color.glow : "#64748b";
         ctx.shadowBlur = 0;
-        ctx.fillText(n.sublabel, n.x + 10, n.y + 13);
+        ctx.fillText(n.sublabel, n.x + 14, n.y + 19);
 
         if (n.active) {
-          ctx.font = "bold 8px JetBrains Mono, monospace";
+          ctx.font = "bold 10px JetBrains Mono, monospace";
           ctx.fillStyle = "#10b981";
-          ctx.fillText(`sim:${n.similarity}`, n.x + 10, n.y - 5);
+          ctx.fillText(`sim:${n.similarity}`, n.x + 14, n.y - 8);
         }
         ctx.restore();
       });
@@ -275,7 +278,7 @@ export default function MemoryNeuralNetwork({
   }, []);
 
   return (
-    <div className="w-80 sm:w-88 h-full bg-[#060a17]/95 border-l border-cyan-500/30 flex flex-col relative overflow-hidden backdrop-blur-2xl shrink-0 shadow-2xl z-30">
+    <div className="w-full h-full bg-[#060a17]/95 rounded-2xl border border-cyan-500/40 flex flex-col relative overflow-hidden backdrop-blur-2xl shadow-2xl shadow-cyan-500/10 z-30">
       {/* Fondo Reticular */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.1),transparent_70%)] pointer-events-none" />
 
@@ -304,13 +307,22 @@ export default function MemoryNeuralNetwork({
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-cyan-400" : ""}`} />
           </button>
+          {onManage && (
+            <button
+              onClick={onManage}
+              className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-cyan-300 border border-slate-800 transition-colors"
+              title="Gestionar memorias (crear/editar/borrar)"
+            >
+              <Database className="w-3.5 h-3.5" />
+            </button>
+          )}
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-red-400 border border-slate-800 transition-colors"
-              title="Ocultar Panel Lateral RAG"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-red-950/60 text-slate-300 hover:text-red-300 border border-slate-800 hover:border-red-500/40 transition-colors text-xs font-semibold"
+              title="Cerrar"
             >
-              <EyeOff className="w-3.5 h-3.5" />
+              <span>✕ Cerrar</span>
             </button>
           )}
         </div>
@@ -350,7 +362,7 @@ export default function MemoryNeuralNetwork({
           <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" /> LLM Engines
         </span>
         <span className="flex items-center gap-1.5 text-emerald-400">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" /> Walther / Manuel
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" /> Dr. Walther Parrado
         </span>
       </div>
     </div>
