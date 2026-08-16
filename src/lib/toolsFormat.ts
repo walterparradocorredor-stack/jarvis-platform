@@ -66,9 +66,9 @@ export function formatPlacesNearby(places: NearbyPlace[], type: string): string 
   return out.trim();
 }
 
-export function formatWeather(weather: CurrentWeather): string {
+export function formatWeather(weather: CurrentWeather, location = "Bogotá, Colombia"): string {
   return (
-    `☀️ **Clima actual**\n\n` +
+    `☀️ **Clima actual — ${location}**\n\n` +
     `- Condición: **${weather.description}**\n` +
     `- Temperatura: **${weather.temperatureC.toFixed(1)}°C**\n` +
     `- Sensación térmica: **${weather.feelsLikeC.toFixed(1)}°C**` +
