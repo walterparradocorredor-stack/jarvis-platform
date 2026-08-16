@@ -302,22 +302,30 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
     ]);
   }, [activeProvider]);
 
+  // URL absoluta construida desde window.location.origin en vez de una ruta
+  // relativa suelta — inmune a cualquier reescritura de esquema (Service
+  // Worker fantasma, extensión de navegador, etc.) que pudiera degradar una
+  // ruta relativa a http://. El servidor ya estaba verificado sano (curl
+  // directo por HTTPS con datos reales, sin redirects, sin URLs http:// en
+  // el HTML) — esto es un blindaje adicional del lado del cliente.
+  const apiUrl = useCallback((path: string) => `${window.location.origin}${path}`, []);
+
   const runQuickTool = useCallback(
-    async (kind: "briefing" | "gmail" | "calendar" | "maps" | "seo" | "tasks") => {
+    async (kind: "briefing" | "gmail" | "calendar" | "maps" | "seo" | "tasks" | "weather" | "youtube") => {
       if (isLoading) return;
       setIsLoading(true);
       setOrbState("thinking");
       try {
         if (kind === "briefing") {
-          const res = await fetch("/api/tools/daily-briefing");
+          const res = await fetch(apiUrl("/api/tools/daily-briefing"));
           const data = await res.json();
           pushJarvisMessage(data.text || `⚠️ No se pudo generar el Daily Briefing: ${data.error}`);
         } else if (kind === "gmail") {
-          const res = await fetch("/api/tools/gmail-summary");
+          const res = await fetch(apiUrl("/api/tools/gmail-summary"));
           const data = await res.json();
           pushJarvisMessage(data.text || `⚠️ No se pudo consultar Gmail: ${data.error}`);
         } else if (kind === "calendar") {
-          const res = await fetch("/api/tools/calendar-agenda?range=today");
+          const res = await fetch(apiUrl("/api/tools/calendar-agenda?range=today"));
           const data = await res.json();
           pushJarvisMessage(data.text || `⚠️ No se pudo consultar Calendar: ${data.error}`);
         } else if (kind === "maps") {
@@ -329,18 +337,26 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
           }
           const origin = window.prompt("¿Desde dónde? (origen)", "Bogotá, Colombia") || "Bogotá, Colombia";
           const res = await fetch(
-            `/api/tools/maps-route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`
+            apiUrl(`/api/tools/maps-route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`)
           );
           const data = await res.json();
           pushJarvisMessage(data.text || `⚠️ No se pudo calcular la ruta: ${data.error}`);
         } else if (kind === "seo") {
-          const res = await fetch("/api/tools/search-console");
+          const res = await fetch(apiUrl("/api/tools/search-console"));
           const data = await res.json();
           pushJarvisMessage(data.text || `⚠️ No se pudo consultar Search Console: ${data.error}`);
         } else if (kind === "tasks") {
-          const res = await fetch("/api/tools/tasks");
+          const res = await fetch(apiUrl("/api/tools/tasks"));
           const data = await res.json();
           pushJarvisMessage(data.text || `⚠️ No se pudo consultar Tasks: ${data.error}`);
+        } else if (kind === "weather") {
+          const res = await fetch(apiUrl("/api/tools/weather?lat=4.711&lng=-74.0721"));
+          const data = await res.json();
+          pushJarvisMessage(data.text || `⚠️ No se pudo consultar el clima: ${data.error}`);
+        } else if (kind === "youtube") {
+          const res = await fetch(apiUrl("/api/tools/youtube-metrics"));
+          const data = await res.json();
+          pushJarvisMessage(data.text || `⚠️ No se pudo consultar YouTube: ${data.error}`);
         }
       } catch (err: any) {
         pushJarvisMessage(`⚠️ Error de conexión con las herramientas MCP: ${err.message}`);
@@ -349,7 +365,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
         setOrbState("idle");
       }
     },
-    [isLoading, pushJarvisMessage]
+    [isLoading, pushJarvisMessage, apiUrl]
   );
 
   return (
@@ -507,6 +523,8 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
                   { label: "🗺️ Rutas y Tráfico", kind: "maps" as const },
                   { label: "🔍 SEO & Tráfico Web", kind: "seo" as const },
                   { label: "📝 Mis Tareas Pendientes", kind: "tasks" as const },
+                  { label: "☀️ Clima", kind: "weather" as const },
+                  { label: "🎬 YouTube", kind: "youtube" as const },
                 ].map((item) => (
                   <button
                     key={item.kind}
