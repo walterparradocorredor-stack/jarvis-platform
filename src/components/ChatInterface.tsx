@@ -350,7 +350,18 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
           const data = await res.json();
           pushJarvisMessage(data.text || `⚠️ No se pudo consultar Tasks: ${data.error}`);
         } else if (kind === "weather") {
-          const res = await fetch(apiUrl("/api/tools/weather?lat=4.711&lng=-74.0721"));
+          // Ubicación real del dispositivo (GPS/red del navegador) — si el
+          // usuario no está en Bogotá, el clima tiene que reflejar dónde
+          // está de verdad, no una sede de referencia fija.
+          const coords = await new Promise<{ lat: number; lng: number }>((resolve) => {
+            if (!navigator.geolocation) return resolve({ lat: 4.711, lng: -74.0721 });
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+              () => resolve({ lat: 4.711, lng: -74.0721 }),
+              { timeout: 6000 }
+            );
+          });
+          const res = await fetch(apiUrl(`/api/tools/weather?lat=${coords.lat}&lng=${coords.lng}`));
           const data = await res.json();
           pushJarvisMessage(data.text || `⚠️ No se pudo consultar el clima: ${data.error}`);
         } else if (kind === "youtube") {

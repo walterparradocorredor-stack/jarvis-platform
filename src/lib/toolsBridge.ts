@@ -264,6 +264,7 @@ export interface CurrentWeather {
   temperatureC: number;
   feelsLikeC: number;
   humidityPercent: number | null;
+  location: string;
 }
 
 export async function getWeatherCurrent(
