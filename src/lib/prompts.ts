@@ -30,11 +30,24 @@ export async function fetchGroundedFacts(): Promise<string> {
     }
   }
 
-  const [gmail, calendar, metaAds, seo] = await Promise.all([
+  async function getGoogleMapsStatus(): Promise<{ connected: boolean; detail: string } | null> {
+    const bridgeUrl = process.env.TOOLS_BRIDGE_URL || "http://tools-bridge:4100";
+    try {
+      const res = await fetch(`${bridgeUrl}/health/all`, { signal: AbortSignal.timeout(4000) });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.integrations?.googleMaps ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  const [gmail, calendar, metaAds, seo, googleMaps] = await Promise.all([
     getSnapshot("gmail_snapshot"),
     getSnapshot("next_appointment"),
     getSnapshot("meta_ads_snapshot"),
     getSnapshot("search_console_snapshot"),
+    getGoogleMapsStatus(),
   ]);
 
   if (gmail) lines.push(`- Gmail: ${gmail.unread} correos no leídos de ${gmail.inboxTotal} en la bandeja.`);
@@ -54,7 +67,15 @@ export async function fetchGroundedFacts(): Promise<string> {
     }
   } catch {}
 
-  lines.push("- Google Maps/GPS: NO conectado (la API key configurada devuelve REQUEST_DENIED) — no inventes rutas ni tiempos de tráfico.");
+  if (googleMaps?.connected) {
+    lines.push(
+      "- Google Maps/GPS: conectado (Geocoding API validada) — podés geocodificar direcciones reales, pero NO tenés tráfico en vivo ni cálculo de rutas turn-by-turn (esa función no está implementada todavía), no lo inventes."
+    );
+  } else {
+    lines.push(
+      `- Google Maps/GPS: NO conectado (${googleMaps?.detail || "tools-bridge no alcanzable"}) — no inventes rutas ni tiempos de tráfico.`
+    );
+  }
 
   return lines.join("\n");
 }
