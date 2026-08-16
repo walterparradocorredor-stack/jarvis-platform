@@ -311,7 +311,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
   const apiUrl = useCallback((path: string) => `${window.location.origin}${path}`, []);
 
   const runQuickTool = useCallback(
-    async (kind: "briefing" | "gmail" | "calendar" | "maps" | "seo" | "tasks" | "weather" | "youtube") => {
+    async (kind: "briefing" | "gmail" | "calendar" | "maps" | "seo" | "tasks" | "weather" | "youtube" | "places") => {
       if (isLoading) return;
       setIsLoading(true);
       setOrbState("thinking");
@@ -368,6 +368,18 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
           const res = await fetch(apiUrl("/api/tools/youtube-metrics"));
           const data = await res.json();
           pushJarvisMessage(data.text || `⚠️ No se pudo consultar YouTube: ${data.error}`);
+        } else if (kind === "places") {
+          const coords = await new Promise<{ lat: number; lng: number }>((resolve) => {
+            if (!navigator.geolocation) return resolve({ lat: 4.711, lng: -74.0721 });
+            navigator.geolocation.getCurrentPosition(
+              (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+              () => resolve({ lat: 4.711, lng: -74.0721 }),
+              { timeout: 6000 }
+            );
+          });
+          const res = await fetch(apiUrl(`/api/tools/places-nearby?lat=${coords.lat}&lng=${coords.lng}&type=restaurant`));
+          const data = await res.json();
+          pushJarvisMessage(data.text || `⚠️ No se pudo consultar lugares cercanos: ${data.error}`);
         }
       } catch (err: any) {
         pushJarvisMessage(`⚠️ Error de conexión con las herramientas MCP: ${err.message}`);
@@ -536,6 +548,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
                   { label: "📝 Mis Tareas Pendientes", kind: "tasks" as const },
                   { label: "☀️ Clima", kind: "weather" as const },
                   { label: "🎬 YouTube", kind: "youtube" as const },
+                  { label: "📍 Lugares Cercanos", kind: "places" as const },
                 ].map((item) => (
                   <button
                     key={item.kind}
