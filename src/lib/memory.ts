@@ -6,15 +6,15 @@
 const SUPABASE_URL = process.env.SUPABASE_INTERNAL_URL || "http://supabase-kong:8000";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE";
-const EMBEDDING_DIMS = 768;
+// public.jarvis_memory.embedding es vector(1536) — tiene que coincidir exacto
+// con lo que pide pgvector, si no el insert falla.
+const EMBEDDING_DIMS = 1536;
 
 export interface MemoryItem {
   id: string;
-  conversation_id: string;
   role: "user" | "assistant";
   content: string;
   similarity: number;
-  created_at: string;
 }
 
 async function embedText(text: string): Promise<number[] | null> {
@@ -48,23 +48,32 @@ async function embedText(text: string): Promise<number[] | null> {
  * Guarda un turno de conversación (usuario o asistente) con su embedding.
  * Falla en silencio si algo sale mal — nunca debe romper el flujo de chat
  * por un problema de memoria.
+ *
+ * public.jarvis_memory NO tiene columnas conversation_id/role — su RLS
+ * ("jarvis_memory_service_write") solo permite escribir con auth.role() =
+ * 'service_role', así que esto tiene que usar la service_role key (nunca la
+ * anon key, que aquí siempre falla en silencio contra ese policy). role y
+ * conversation_id se guardan dentro de metadata (jsonb) y category se usa
+ * para que el grafo de MemoryNeuralNetwork los pinte user/ai directamente.
  */
 export async function saveMemory(conversationId: string, role: "user" | "assistant", content: string): Promise<void> {
   if (!content.trim()) return;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) return;
   try {
     const embedding = await embedText(content);
     await fetch(`${SUPABASE_URL}/rest/v1/jarvis_memory`, {
       method: "POST",
       headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
       body: JSON.stringify({
-        conversation_id: conversationId,
-        role,
         content,
+        category: role === "user" ? "user" : "ai",
+        metadata: { role, conversation_id: conversationId },
         embedding,
       }),
       signal: AbortSignal.timeout(8000),
@@ -95,8 +104,16 @@ export async function retrieveRelevantMemory(query: string, matchCount = 5): Pro
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    const rows: { id: string; content: string; category: string | null; metadata: any; similarity: number }[] =
+      await res.json();
+    return Array.isArray(rows)
+      ? rows.map((r) => ({
+          id: r.id,
+          role: r.metadata?.role === "assistant" || r.category === "ai" ? "assistant" : "user",
+          content: r.content,
+          similarity: r.similarity,
+        }))
+      : [];
   } catch {
     return [];
   }
@@ -111,8 +128,8 @@ export function formatMemoryContext(items: MemoryItem[]): string | null {
   if (relevant.length === 0) return null;
 
   const lines = relevant
-    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-    .map((m) => `- (${m.role === "user" ? "Dr. Walther dijo" : "Jarvis respondió"}, ${new Date(m.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}): ${m.content.slice(0, 300)}`)
+    .sort((a, b) => b.similarity - a.similarity)
+    .map((m) => `- (${m.role === "user" ? "Dr. Walther dijo" : "Jarvis respondió"}): ${m.content.slice(0, 300)}`)
     .join("\n");
 
   return `[MEMORIA REAL DE CONVERSACIONES ANTERIORES — usa esto si es relevante para la pregunta actual, no lo repitas textual si no aplica]\n${lines}`;

@@ -6,8 +6,9 @@ const SUPABASE_ANON_KEY =
 
 interface MemoryRow {
   id: string;
-  role: "user" | "assistant";
   content: string;
+  category: string | null;
+  metadata: { role?: string } | null;
   embedding: number[] | null;
   created_at: string;
 }
@@ -28,7 +29,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 export async function GET(request: NextRequest) {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/jarvis_memory?select=id,role,content,embedding,created_at&order=created_at.desc&limit=16`,
+      `${SUPABASE_URL}/rest/v1/jarvis_memory?select=id,content,category,metadata,embedding,created_at&order=created_at.desc&limit=16`,
       {
         headers: {
           apikey: SUPABASE_ANON_KEY,
@@ -52,8 +53,8 @@ export async function GET(request: NextRequest) {
     const nodes = rows.map((r) => ({
       id: r.id,
       label: r.content.length > 42 ? `${r.content.slice(0, 42)}...` : r.content,
-      sublabel: `${r.role === "user" ? "Dr. Walther" : "Jarvis"} · ${new Date(r.created_at).toLocaleString("es-CO", { timeZone: "America/Bogota", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
-      category: r.role === "user" ? "user" : "ai",
+      sublabel: `${r.metadata?.role === "user" ? "Dr. Walther" : "Jarvis"} · ${new Date(r.created_at).toLocaleString("es-CO", { timeZone: "America/Bogota", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`,
+      category: r.category || "rag",
       similarity: 0,
     }));
 
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
       success: true,
       nodes,
       edges,
-      totalDimensions: 768,
+      totalDimensions: 1536,
       table: "public.jarvis_memory",
       timestamp: new Date().toISOString(),
     });

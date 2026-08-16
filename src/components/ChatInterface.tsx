@@ -117,9 +117,25 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
       const startTime = Date.now();
 
       try {
-        const history = messages.slice(-6).map((m) => ({
+        // Memoria visual multi-turno: el historial normal solo lleva las
+        // últimas 6 entradas, así que una foto analizada hace rato se cae del
+        // contexto y JARVIS ya no puede "recordar" qué vio. Si hubo una
+        // imagen antes de esa ventana, se conserva ese intercambio (el
+        // mensaje con la imagen + la respuesta descriptiva de JARVIS) al
+        // principio del historial, marcado explícitamente para que el modelo
+        // sepa que ahí hubo una foto real, no que la esté inventando.
+        const recent = messages.slice(-6);
+        const imageMsgIndex = messages.findIndex((m) => m.image);
+        const imageMsg = imageMsgIndex !== -1 ? messages[imageMsgIndex] : null;
+        const imageMsgInRecent = imageMsg ? recent.some((m) => m.id === imageMsg.id) : true;
+        const historySource =
+          imageMsg && !imageMsgInRecent
+            ? [imageMsg, ...(messages[imageMsgIndex + 1] ? [messages[imageMsgIndex + 1]] : []), ...recent]
+            : recent;
+
+        const history = historySource.map((m) => ({
           role: m.sender === "user" ? "user" : "assistant",
-          content: m.content,
+          content: m.image ? `${m.content} [el usuario adjuntó una imagen real en este mensaje]` : m.content,
         }));
 
         const {

@@ -16,6 +16,8 @@ services:
       - SUPABASE_INTERNAL_URL=http://supabase-kong:8000
       - TOOLS_BRIDGE_URL=http://tools-bridge:4100
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - OPERATOR_PIN=${OPERATOR_PIN}
     networks:
       - default
       - supabase_default

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import SeoSchema from "@/components/SeoSchema";
+import ServiceWorkerCleanup from "@/components/ServiceWorkerCleanup";
 
 export const metadata: Metadata = {
   title: "JARVIS AI Platform — Asistente de IA Corporativa | JyM Tech Solutions",
@@ -27,6 +28,7 @@ export default function RootLayout({
           {children}
         </div>
         <SeoSchema />
+        <ServiceWorkerCleanup />
       </body>
     </html>
   );

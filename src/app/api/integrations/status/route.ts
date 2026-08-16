@@ -14,6 +14,7 @@ export async function GET() {
     googleMaps: { connected: false, detail: "tools-bridge no alcanzable" },
     youtube: { connected: false, detail: "tools-bridge no alcanzable" },
     rag: { connected: false, detail: "tools-bridge no alcanzable" },
+    outlook: { connected: false, detail: "tools-bridge no alcanzable" },
   };
 
   try {

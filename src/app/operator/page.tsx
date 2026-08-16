@@ -23,15 +23,24 @@ export default function OperatorPage() {
     }
   }, []);
 
-  const handleAuthenticate = (e: React.FormEvent) => {
+  const handleAuthenticate = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Clave de acceso o PIN de Operador (2026 o JymAdmin_2026_Secure!)
-    if (passInput === "2026" || passInput === "JymAdmin_2026_Secure!" || passInput === "admin") {
-      sessionStorage.setItem("jarvis_operator_session", "granted");
-      setIsAuthenticated(true);
-      setErrorMsg("");
-    } else {
-      setErrorMsg("Código de acceso incorrecto");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/operator/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: passInput }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        sessionStorage.setItem("jarvis_operator_session", "granted");
+        setIsAuthenticated(true);
+      } else {
+        setErrorMsg(data.error || "Código de acceso incorrecto");
+      }
+    } catch {
+      setErrorMsg("No se pudo verificar el acceso — reintenta");
     }
   };
 

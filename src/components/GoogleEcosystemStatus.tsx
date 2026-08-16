@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Calendar, Mail, MapPin, Youtube, Database, Megaphone } from "lucide-react";
+import { Calendar, Mail, MapPin, Youtube, Database, Megaphone, Inbox } from "lucide-react";
 
 interface IntegrationState {
   connected: boolean;
@@ -17,6 +17,7 @@ interface StatusPayload {
     youtube: IntegrationState;
     rag: IntegrationState;
     metaAds: IntegrationState;
+    outlook: IntegrationState;
   };
 }
 
@@ -27,6 +28,7 @@ const CAPSULES: {
 }[] = [
   { key: "googleCalendar", label: "Calendar", icon: Calendar },
   { key: "gmail", label: "Gmail", icon: Mail },
+  { key: "outlook", label: "Outlook", icon: Inbox },
   { key: "googleMaps", label: "Maps", icon: MapPin },
   { key: "youtube", label: "YouTube", icon: Youtube },
   { key: "metaAds", label: "Meta", icon: Megaphone },
@@ -60,26 +62,33 @@ export default function GoogleEcosystemStatus() {
       {CAPSULES.map(({ key, label, icon: Icon }) => {
         const state = status?.[key];
         const connected = !!state?.connected;
+        // Outlook desconectado: la cápsula funciona como botón "Conectar"
+        // (arranca el consentimiento OAuth), igual que Calendar/Gmail se
+        // conectaron la primera vez visitando /api/auth/google directo.
+        const clickable = key === "outlook" && !loading && !connected;
+        const Tag = clickable ? "a" : "div";
         return (
-          <div
+          <Tag
             key={key}
-            title={state?.detail || "Verificando conexión..."}
+            {...(clickable ? { href: "/api/auth/microsoft", title: "Conectar Outlook / Hotmail" } : { title: state?.detail || "Verificando conexión..." })}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-semibold transition-all ${
               loading
                 ? "bg-slate-900/60 border-slate-800 text-slate-500"
                 : connected
                 ? "bg-emerald-950/70 border-emerald-500/50 text-emerald-300 shadow-md shadow-emerald-500/10"
+                : clickable
+                ? "bg-slate-900/80 border-cyan-700/50 text-cyan-300 hover:border-cyan-400 hover:bg-slate-800 cursor-pointer"
                 : "bg-slate-900/80 border-amber-800/40 text-amber-300/80"
             }`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full ${
-                loading ? "bg-slate-600" : connected ? "bg-emerald-400 animate-pulse" : "bg-amber-500"
+                loading ? "bg-slate-600" : connected ? "bg-emerald-400 animate-pulse" : clickable ? "bg-cyan-400" : "bg-amber-500"
               }`}
             />
             <Icon className="w-3 h-3" />
-            <span className="hidden lg:inline">{label}</span>
-          </div>
+            <span className="hidden lg:inline">{clickable ? "Conectar Outlook" : label}</span>
+          </Tag>
         );
       })}
     </div>
