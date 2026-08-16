@@ -14,6 +14,7 @@ import AgentHubModal from "@/components/AgentHubModal";
 import DevOpsConsoleModal from "@/components/DevOpsConsoleModal";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import CameraVisionModule from "@/components/CameraVisionModule";
+import JarvisCoreImmersive from "@/components/JarvisCoreImmersive";
 
 interface ChatInterfaceProps {
   currentProvider?: LLMProvider;
@@ -62,6 +63,8 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
   const [lastJarvisReply, setLastJarvisReply] = useState<string>("");
   const [showSlash, setShowSlash] = useState(false);
   const [slashQuery, setSlashQuery] = useState("");
+  const [showImmersive, setShowImmersive] = useState(false);
+  const [ttsAnalyser, setTtsAnalyser] = useState<AnalyserNode | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -351,9 +354,26 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
             if (voiceState === "transcribing") setOrbState("thinking");
             else setOrbState(voiceState);
           }}
+          onTtsAnalyser={setTtsAnalyser}
           lastJarvisMessage={lastJarvisReply}
         />
+        <button
+          type="button"
+          onClick={() => setShowImmersive(true)}
+          title="Vista inmersiva JARVIS Core 3D"
+          className="p-2.5 rounded-xl border border-orange-500/30 bg-gradient-to-br from-orange-950/60 to-slate-900 text-orange-300 hover:border-orange-400/60 hover:text-orange-200 transition-all"
+        >
+          <Sparkles className="w-4 h-4" />
+        </button>
       </div>
+
+      <JarvisCoreImmersive
+        isOpen={showImmersive}
+        onClose={() => setShowImmersive(false)}
+        analyser={ttsAnalyser}
+        responseText={lastJarvisReply}
+        orbState={orbState}
+      />
 
       {/* Contenedor Principal: Chat (el grafo RAG vive en un modal centrado aparte) */}
       <div className="flex-1 flex overflow-hidden relative z-10">

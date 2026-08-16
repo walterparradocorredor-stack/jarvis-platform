@@ -18,6 +18,7 @@ interface VoiceModuleProps {
   onInterimResult?: (text: string) => void;
   lastJarvisMessage?: string;
   onStateChange?: (state: VoiceState) => void;
+  onTtsAnalyser?: (analyser: AnalyserNode | null) => void;
   variant?: "compact" | "hero";
 }
 
@@ -31,6 +32,7 @@ export default function VoiceModule({
   onInterimResult,
   lastJarvisMessage,
   onStateChange,
+  onTtsAnalyser,
   variant = "compact",
 }: VoiceModuleProps) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
@@ -39,6 +41,12 @@ export default function VoiceModule({
   const [micPermissionError, setMicPermissionError] = useState(false);
   const [ttsAnalyser, setTtsAnalyser] = useState<AnalyserNode | null>(null);
   const [ttsSimulated, setTtsSimulated] = useState(false);
+
+  // Notifica al padre (ej. el orbe 3D del modo inmersivo) cada vez que cambia
+  // el analyser de la voz de JARVIS — puramente aditivo, no toca el resto.
+  useEffect(() => {
+    onTtsAnalyser?.(ttsAnalyser);
+  }, [ttsAnalyser, onTtsAnalyser]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
