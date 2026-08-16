@@ -66,6 +66,8 @@ export default function MemoryNeuralNetwork({
         const data = await res.json();
         if (data.nodes && Array.isArray(data.nodes)) {
           const cols = 4;
+          const idToIndex = new Map<string, number>(data.nodes.map((item: any, idx: number) => [item.id, idx]));
+
           const loadedNodes: Node[] = data.nodes.map((item: any, idx: number) => ({
             id: idx,
             x: 120 + (idx % cols) * 240 + (Math.random() - 0.5) * 30,
@@ -76,27 +78,28 @@ export default function MemoryNeuralNetwork({
             label: item.label,
             sublabel: item.sublabel,
             category: item.category as any,
-            similarity: item.similarity || Number((Math.random() * 0.1 + 0.89).toFixed(3)),
+            similarity: item.similarity || 0,
             active: false,
             glowProgress: 0,
           }));
 
-          const edges: Edge[] = [];
-          for (let i = 0; i < loadedNodes.length; i++) {
-            for (let j = i + 1; j < loadedNodes.length; j++) {
-              const dist = Math.hypot(loadedNodes[i].x - loadedNodes[j].x, loadedNodes[i].y - loadedNodes[j].y);
-              if (dist < 300) {
-                edges.push({
-                  source: i,
-                  target: j,
-                  weight: Math.random() * 0.7 + 0.3,
-                  active: false,
-                  pulsePos: Math.random(),
-                  pulseSpeed: Math.random() * 0.01 + 0.008,
-                });
-              }
-            }
-          }
+          // Conexiones reales calculadas por el backend (similitud de coseno
+          // entre embeddings reales de la memoria), no por cercanía en pantalla.
+          const edges: Edge[] = (Array.isArray(data.edges) ? data.edges : [])
+            .map((e: any) => {
+              const source = idToIndex.get(e.source);
+              const target = idToIndex.get(e.target);
+              if (source === undefined || target === undefined) return null;
+              return {
+                source,
+                target,
+                weight: e.weight,
+                active: false,
+                pulsePos: Math.random(),
+                pulseSpeed: Math.random() * 0.01 + 0.008,
+              };
+            })
+            .filter((e: Edge | null): e is Edge => e !== null);
 
           nodesRef.current = loadedNodes;
           edgesRef.current = edges;

@@ -1,121 +1,8 @@
 import { NextRequest } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/requireAuth";
 import { buildJarvisSystemPrompt, fetchGroundedFacts } from "@/lib/prompts";
-import { JARVIS_TOOLS, executeJarvisTool } from "@/lib/tools";
-
-// Corre Groq en streaming con function calling real: si el modelo pide una
-// herramienta (rutas/tráfico, crear evento de Calendar), la ejecuta contra
-// tools-bridge y hace una segunda pasada en streaming con el resultado real
-// para que JARVIS responda con datos verdaderos, no inventados.
-function streamGroqWithTools(groqKey: string, modelName: string, baseMessages: any[]) {
-  const encoder = new TextEncoder();
-
-  return new ReadableStream({
-    async start(controller) {
-      function sendContent(content: string) {
-        const chunk = JSON.stringify({ choices: [{ delta: { content }, finish_reason: null }] });
-        controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
-      }
-
-      async function runOnePass(messages: any[], allowTools: boolean) {
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: modelName,
-            stream: true,
-            temperature: 0.6,
-            messages,
-            ...(allowTools ? { tools: JARVIS_TOOLS, tool_choice: "auto" } : {}),
-          }),
-        });
-        if (!res.ok || !res.body) {
-          throw new Error(`Groq respondió HTTP ${res.status}`);
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        const toolCallsAcc: Record<number, { id?: string; name?: string; args: string }> = {};
-        let sawToolCalls = false;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-            const payload = line.slice(5).trim();
-            if (!payload || payload === "[DONE]") continue;
-            let parsed: any;
-            try {
-              parsed = JSON.parse(payload);
-            } catch {
-              continue;
-            }
-            const delta = parsed.choices?.[0]?.delta;
-            if (!delta) continue;
-            if (delta.content) sendContent(delta.content);
-            if (delta.tool_calls) {
-              sawToolCalls = true;
-              for (const tc of delta.tool_calls) {
-                const idx = tc.index ?? 0;
-                if (!toolCallsAcc[idx]) toolCallsAcc[idx] = { args: "" };
-                if (tc.id) toolCallsAcc[idx].id = tc.id;
-                if (tc.function?.name) toolCallsAcc[idx].name = tc.function.name;
-                if (tc.function?.arguments) toolCallsAcc[idx].args += tc.function.arguments;
-              }
-            }
-          }
-        }
-        return { sawToolCalls, toolCallsAcc };
-      }
-
-      try {
-        const { sawToolCalls, toolCallsAcc } = await runOnePass(baseMessages, true);
-
-        if (sawToolCalls) {
-          const toolCallsArr = Object.values(toolCallsAcc)
-            .filter((t) => t.name)
-            .map((t, i) => ({ ...t, id: t.id || `call_${i}` }));
-
-          const assistantMsg = {
-            role: "assistant",
-            content: null,
-            tool_calls: toolCallsArr.map((t) => ({
-              id: t.id,
-              type: "function",
-              function: { name: t.name, arguments: t.args || "{}" },
-            })),
-          };
-
-          const toolResultMsgs = [];
-          for (const tc of toolCallsArr) {
-            let args: any = {};
-            try {
-              args = JSON.parse(tc.args || "{}");
-            } catch {
-              // args mal formados: se ejecuta igual con {} y la herramienta reporta el error
-            }
-            const result = await executeJarvisTool(tc.name as string, args);
-            toolResultMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
-          }
-
-          await runOnePass([...baseMessages, assistantMsg, ...toolResultMsgs], false);
-        }
-
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-      } catch (err: any) {
-        sendContent(`\n\n⚠️ Error al usar una herramienta: ${err.message}`);
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-      }
-    },
-  });
-}
+import { buildToolContext } from "@/lib/toolsIntent";
+import { retrieveRelevantMemory, formatMemoryContext, saveMemory, wrapStreamWithMemorySave } from "@/lib/memory";
 
 export async function POST(request: NextRequest) {
   try {
@@ -125,14 +12,27 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { message, history = [], image } = body;
     let { provider = "groq", apiKey } = body;
+    const conversationId = body.conversationId || "default";
+    // Si el cliente eligió explícitamente un proveedor (selector, o el fix
+    // automático de Cámara/Visión a Gemini), respetarlo — no dejar que la
+    // config global de Supabase lo pise por debajo.
+    const providerExplicit = Boolean(body.provider);
 
     if (!message) {
       return new Response(JSON.stringify({ error: "Mensaje requerido" }), { status: 400 });
     }
 
+    // Datos reales de Gmail/Calendar/Maps/Weather/Tasks/etc si el mensaje los
+    // requiere (detección de intención + ejecución real vía tools-bridge).
+    const toolContext = await buildToolContext(message);
+    // Memoria real de conversaciones anteriores (pgvector), no solo la sesión actual
+    const memoryContext = formatMemoryContext(await retrieveRelevantMemory(message));
+    await saveMemory(conversationId, "user", message);
+
     // Inyección de Fecha y Hora Real en Español
     const now = new Date();
     const currentDateTimeStr = now.toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -143,6 +43,11 @@ export async function POST(request: NextRequest) {
 
     const groundedFacts = await fetchGroundedFacts();
     const DYNAMIC_JARVIS_SYSTEM_PROMPT = buildJarvisSystemPrompt(currentDateTimeStr, groundedFacts);
+
+    const contextBlocks = [toolContext, memoryContext].filter(Boolean).join("\n\n");
+    const finalSystemPrompt = contextBlocks
+      ? `${DYNAMIC_JARVIS_SYSTEM_PROMPT}\n\n${contextBlocks}`
+      : DYNAMIC_JARVIS_SYSTEM_PROMPT;
 
     // 1. Cargar configuración guardada en Supabase BD si no hay API Key explícita
     if (!apiKey) {
@@ -162,7 +67,7 @@ export async function POST(request: NextRequest) {
           const rows = await dbRes.json();
           const cfg = rows?.[0]?.content;
           if (cfg) {
-            if (cfg.activeProvider) provider = cfg.activeProvider;
+            if (!providerExplicit && cfg.activeProvider) provider = cfg.activeProvider;
             if (provider === "groq") apiKey = cfg.groqKey || process.env.GROQ_API_KEY;
             if (provider === "openai") apiKey = cfg.openaiKey || process.env.OPENAI_API_KEY;
             if (provider === "gemini") apiKey = cfg.geminiKey || process.env.GEMINI_API_KEY;
@@ -173,39 +78,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // --- GROQ Streaming (con function calling: rutas/tráfico, crear eventos) ---
+    // Si la imagen no se pudo analizar con ningún proveedor de visión, se
+    // informa el error real en vez de caer en el fallback genérico de texto
+    // (ese fallback fabricaría una respuesta que ignora la imagen adjunta).
+    let lastVisionError: string | null = null;
+
+    // --- GROQ Streaming ---
     const groqKey = apiKey || process.env.GROQ_API_KEY;
     if (provider === "groq" && groqKey) {
-      // El modelo de visión de Groq no soporta tool calling — si hay imagen,
-      // se prioriza describirla y no se ofrecen herramientas en esa pasada.
       const modelName = image ? "llama-3.2-11b-vision-preview" : "openai/gpt-oss-120b";
       const userContent = image
         ? [{ type: "text", text: message }, { type: "image_url", image_url: { url: image } }]
         : message;
 
-      const baseMessages = [
-        { role: "system", content: DYNAMIC_JARVIS_SYSTEM_PROMPT },
-        ...history,
-        { role: "user", content: userContent },
-      ];
+      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: modelName,
+          stream: true,
+          messages: [
+            { role: "system", content: finalSystemPrompt },
+            ...history,
+            { role: "user", content: userContent },
+          ],
+          temperature: 0.6,
+        }),
+      });
 
-      if (image) {
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: modelName, stream: true, messages: baseMessages, temperature: 0.6 }),
-        });
-        if (groqRes.ok && groqRes.body) {
-          return new Response(groqRes.body, {
-            headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
-          });
-        }
-      } else {
-        const stream = streamGroqWithTools(groqKey, modelName, baseMessages);
-        return new Response(stream, {
-          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+      if (groqRes.ok && groqRes.body) {
+        return new Response(wrapStreamWithMemorySave(groqRes.body, conversationId), {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
         });
       }
+      if (image) {
+        try {
+          const errBody = await groqRes.json();
+          lastVisionError = errBody?.error?.message || `Groq respondió ${groqRes.status}`;
+        } catch {
+          lastVisionError = `Groq respondió ${groqRes.status}`;
+        }
+      }
+    } else if (image && provider === "groq" && !groqKey) {
+      lastVisionError = "API Key de Groq no configurada.";
     }
 
     // --- OPENAI Streaming ---
@@ -222,7 +141,7 @@ export async function POST(request: NextRequest) {
           model: "gpt-4o-mini",
           stream: true,
           messages: [
-            { role: "system", content: DYNAMIC_JARVIS_SYSTEM_PROMPT },
+            { role: "system", content: finalSystemPrompt },
             ...history,
             { role: "user", content: userContent },
           ],
@@ -230,7 +149,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (oaiRes.ok && oaiRes.body) {
-        return new Response(oaiRes.body, {
+        return new Response(wrapStreamWithMemorySave(oaiRes.body, conversationId), {
           headers: {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
@@ -238,12 +157,22 @@ export async function POST(request: NextRequest) {
           },
         });
       }
+      if (image) {
+        try {
+          const errBody = await oaiRes.json();
+          lastVisionError = errBody?.error?.message || `OpenAI respondió ${oaiRes.status}`;
+        } catch {
+          lastVisionError = `OpenAI respondió ${oaiRes.status}`;
+        }
+      }
+    } else if (image && provider === "openai" && !oaiKey) {
+      lastVisionError = "API Key de OpenAI no configurada.";
     }
 
     // --- GEMINI Streaming ---
     const geminiKey = apiKey || process.env.GEMINI_API_KEY;
     if (provider === "gemini" && geminiKey) {
-      const parts: any[] = [{ text: `${DYNAMIC_JARVIS_SYSTEM_PROMPT}\n\nEl usuario pregunta: ${message}` }];
+      const parts: any[] = [{ text: `${finalSystemPrompt}\n\nEl usuario pregunta: ${message}` }];
       if (image && typeof image === "string" && image.startsWith("data:image")) {
         const [meta, base64Data] = image.split(",");
         const mimeMatch = meta.match(/data:(.*?);base64/);
@@ -251,7 +180,7 @@ export async function POST(request: NextRequest) {
       }
 
       const gemRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?key=${geminiKey}&alt=sse`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?key=${geminiKey}&alt=sse`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -288,7 +217,7 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        return new Response(gemRes.body.pipeThrough(transformStream), {
+        return new Response(wrapStreamWithMemorySave(gemRes.body.pipeThrough(transformStream), conversationId), {
           headers: {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
@@ -296,6 +225,35 @@ export async function POST(request: NextRequest) {
           },
         });
       }
+      if (image) {
+        try {
+          const errBody = await gemRes.json();
+          lastVisionError = errBody?.error?.message || `Gemini respondió ${gemRes.status}`;
+        } catch {
+          lastVisionError = `Gemini respondió ${gemRes.status}`;
+        }
+      }
+    } else if (image && provider === "gemini" && !geminiKey) {
+      lastVisionError = "API Key de Gemini no configurada.";
+    }
+
+    // Imagen adjunta pero ningún proveedor de visión pudo procesarla: se
+    // informa el motivo real (el motor local/Flask no soporta imágenes),
+    // en vez de responder como si la imagen no existiera.
+    if (image && lastVisionError) {
+      const encoder = new TextEncoder();
+      const errStream = new ReadableStream({
+        start(controller) {
+          const text = `⚠️ **No se pudo analizar la imagen.** Motivo real: ${lastVisionError}\n\nEl motor local (Qwen 2.5 14B) no procesa imágenes. Selecciona Gemini u OpenAI con una API Key válida configurada, o usa Groq si tu cuenta tiene un modelo de visión activo.`;
+          const chunk = JSON.stringify({ choices: [{ delta: { content: text }, finish_reason: null }] });
+          controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      });
+      return new Response(errStream, {
+        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+      });
     }
 
     // --- FALLBACK LOCAL Flask (:5000) ---
@@ -309,6 +267,7 @@ export async function POST(request: NextRequest) {
       if (flaskRes.ok) {
         const data = await flaskRes.json();
         const reply = data.reply || data.response || data.message || "Respuesta recibida del Motor Local";
+        await saveMemory(conversationId, "assistant", reply);
         const encoder = new TextEncoder();
         const fakeStream = new ReadableStream({
           start(controller) {
@@ -325,7 +284,8 @@ export async function POST(request: NextRequest) {
     } catch (_) {}
 
     // --- FALLBACK FINAL INTELIGENTE SIN MARCADORES DE POSICIÓN ---
-    const fallbackReply = `Estimado **Dr. Walther Parrado**, a la fecha de hoy (${currentDateTimeStr}), le confirmo que la infraestructura del VPS (31.97.145.8) se encuentra 100% operativa. He registrado su solicitud: "${message}". ¿En qué proyecto estratégico o análisis de Jowhalth Academy desea que profundicemos en este momento?`;
+    const fallbackReply = `Recibí tu mensaje ("${message}") pero ningún motor de IA respondió a tiempo (${currentDateTimeStr}). Puede ser la conexión o que falte una API key configurada — ¿querés que lo intente de nuevo?`;
+    await saveMemory(conversationId, "assistant", fallbackReply);
     const encoder = new TextEncoder();
     const fakeStream = new ReadableStream({
       start(controller) {

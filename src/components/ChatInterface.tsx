@@ -1,19 +1,20 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
-import { Send, User, Sparkles, Check, Copy } from "lucide-react";
+import { Send, User, Sparkles, Check, Copy, Brain, Download, Cpu, Database, Bot, Terminal } from "lucide-react";
 import { ChatMessage, LLMProvider } from "@/lib/jarvisApi";
 import { supabase } from "@/lib/supabase";
 import MemoryNeuralNetwork from "@/components/MemoryNeuralNetwork";
 import VoiceModule from "@/components/VoiceModule";
 import ImageUploadModule from "@/components/ImageUploadModule";
-import CameraCaptureModule from "@/components/CameraCaptureModule";
 import JarvisOrb from "@/components/JarvisOrb";
 import SlashCommandMenu, { SlashCommand } from "@/components/SlashCommandMenu";
 import MemoryManagerModal from "@/components/MemoryManagerModal";
 import AgentHubModal from "@/components/AgentHubModal";
 import DevOpsConsoleModal from "@/components/DevOpsConsoleModal";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import IntegrationStatusBadges from "@/components/IntegrationStatusBadges";
+import CameraVisionModule from "@/components/CameraVisionModule";
 
 interface ChatInterfaceProps {
   currentProvider?: LLMProvider;
@@ -37,12 +38,13 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
   isOperatorView = false,
   jarvisImageSrc,
 }, ref) {
+  const [activeProvider, setActiveProvider] = useState<LLMProvider>(currentProvider);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
       sender: "jarvis",
       content:
-        "¡Bienvenido, **Dr. Walther Parrado**! Soy **JARVIS**, la Inteligencia Artificial Corporativa de su Ecosistema Digital (**Dr. Walther Parrado & Jowhalth Academy**). ¿En qué proyecto o análisis estratégico puedo asistirle el día de hoy?",
+        "Hola, soy **JARVIS**. Podés hablarme o escribirme — ¿en qué te ayudo hoy?",
       timestamp: "08:00 AM",
       provider: currentProvider,
     },
@@ -66,19 +68,20 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSendRef = useRef<(text?: string) => void>(() => {});
+  const handleSendRef = useRef<(text?: string, image?: string) => void>(() => {});
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
   const handleSend = useCallback(
-    async (overrideText?: string) => {
+    async (overrideText?: string, overrideImage?: string) => {
       const textToSend = overrideText ?? inputMessage;
-      if ((!textToSend.trim() && !selectedImage) || isLoading) return;
+      const imageToSend = overrideImage ?? selectedImage;
+      if ((!textToSend.trim() && !imageToSend) || isLoading) return;
 
       const userText = textToSend.trim();
-      const attachedImage = selectedImage;
+      const attachedImage = imageToSend;
 
       const userMsg: ChatMessage = {
         id: Date.now().toString(),
@@ -103,7 +106,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
           sender: "jarvis",
           content: "",
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          provider: currentProvider,
+          provider: activeProvider,
         },
       ]);
 
@@ -130,7 +133,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
           },
           body: JSON.stringify({
             message: userText || "Analizar la imagen adjunta.",
-            provider: currentProvider,
+            provider: activeProvider,
             apiKey: activeApiKey,
             image: attachedImage || undefined,
             history,
@@ -195,12 +198,19 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
         setOrbState("idle");
       }
     },
-    [inputMessage, selectedImage, isLoading, currentProvider, activeApiKey, messages]
+    [inputMessage, selectedImage, isLoading, activeProvider, activeApiKey, messages]
   );
 
   useEffect(() => {
     handleSendRef.current = handleSend;
   }, [handleSend]);
+
+  // El selector externo (JarvisHeader) puede cambiar el proveedor global —
+  // se sincroniza acá salvo que el usuario/cámara ya haya hecho un override
+  // local (ej. auto-switch a Gemini al abrir la cámara).
+  useEffect(() => {
+    setActiveProvider(currentProvider);
+  }, [currentProvider]);
 
   const handleExport = useCallback(() => {
     const mdContent = messages
@@ -237,7 +247,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
               hour: "2-digit",
               minute: "2-digit",
             }),
-            provider: currentProvider,
+            provider: activeProvider,
           },
         ]);
       } else if (cmd.action === "export") {
@@ -250,7 +260,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
         handleSendRef.current(cmd.prompt);
       }
     },
-    [currentProvider, handleExport]
+    [activeProvider, handleExport]
   );
 
   const handleCopy = (id: string, text: string) => {
@@ -259,13 +269,187 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // ─── Botones Ejecutivos: invocan datos REALES vía tools-bridge, sin pasar por el LLM ──
+  const pushJarvisMessage = useCallback((content: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        sender: "jarvis",
+        content,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        provider: activeProvider,
+      },
+    ]);
+  }, [activeProvider]);
+
+  const runQuickTool = useCallback(
+    async (kind: "briefing" | "gmail" | "calendar" | "maps" | "seo" | "tasks") => {
+      if (isLoading) return;
+      setIsLoading(true);
+      setOrbState("thinking");
+      try {
+        if (kind === "briefing") {
+          const res = await fetch("/api/tools/daily-briefing");
+          const data = await res.json();
+          pushJarvisMessage(data.text || `⚠️ No se pudo generar el Daily Briefing: ${data.error}`);
+        } else if (kind === "gmail") {
+          const res = await fetch("/api/tools/gmail-summary");
+          const data = await res.json();
+          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo consultar Gmail: ${data.error}`);
+        } else if (kind === "calendar") {
+          const res = await fetch("/api/tools/calendar-agenda?range=today");
+          const data = await res.json();
+          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo consultar Calendar: ${data.error}`);
+        } else if (kind === "maps") {
+          const destination = window.prompt("¿Hacia dónde? (destino)");
+          if (!destination) {
+            setIsLoading(false);
+            setOrbState("idle");
+            return;
+          }
+          const origin = window.prompt("¿Desde dónde? (origen)", "Bogotá, Colombia") || "Bogotá, Colombia";
+          const res = await fetch(
+            `/api/tools/maps-route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`
+          );
+          const data = await res.json();
+          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo calcular la ruta: ${data.error}`);
+        } else if (kind === "seo") {
+          const res = await fetch("/api/tools/search-console");
+          const data = await res.json();
+          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo consultar Search Console: ${data.error}`);
+        } else if (kind === "tasks") {
+          const res = await fetch("/api/tools/tasks");
+          const data = await res.json();
+          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo consultar Tasks: ${data.error}`);
+        }
+      } catch (err: any) {
+        pushJarvisMessage(`⚠️ Error de conexión con las herramientas MCP: ${err.message}`);
+      } finally {
+        setIsLoading(false);
+        setOrbState("idle");
+      }
+    },
+    [isLoading, pushJarvisMessage]
+  );
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#050811] relative overflow-hidden">
       {/* Fondo Neón */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(6,182,212,0.15),rgba(255,255,255,0))] pointer-events-none" />
 
-      {/* Contenedor Principal: Chat a ancho completo (el grafo RAG vive en un drawer aparte; los
-          controles de Vectores RAG/Agentes IA/DevOps/Exportar viven en el header, no aquí) */}
+      {/* Top Controls Bar */}
+      <div className="px-4 py-2 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur-md flex items-center justify-between z-20 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowNeuralNet(!showNeuralNet)}
+            className={`hidden lg:flex px-3 py-1.5 rounded-xl border text-xs font-semibold items-center gap-2 transition-all ${
+              showNeuralNet
+                ? "bg-cyan-950/90 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10"
+                : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Brain className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">
+              {showNeuralNet ? "Ocultar Memoria RAG" : "Ver Memoria RAG"}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setShowMemoryModal(true)}
+            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/40 transition-all"
+            title="Abrir gestor de vectores de memoria RAG"
+          >
+            <Database className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden md:inline">Vectores RAG</span>
+          </button>
+
+          <button
+            onClick={() => setShowAgentModal(true)}
+            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-emerald-300 hover:border-emerald-500/40 transition-all"
+            title="Monitoreo de Agentes IA Corporativos"
+          >
+            <Bot className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden md:inline">Agentes IA</span>
+          </button>
+
+          <button
+            onClick={() => setShowDevOpsModal(true)}
+            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-amber-300 hover:border-amber-500/40 transition-all"
+            title="Consola DevOps Manuel (CEO)"
+          >
+            <Terminal className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden lg:inline">DevOps</span>
+          </button>
+
+          <button
+            onClick={handleExport}
+            title="Exportar conversación como Markdown"
+            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 transition-all"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Selector Dinámico de Motor LLM */}
+          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 py-1 text-xs shadow-inner">
+            <Cpu className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <select
+              value={activeProvider}
+              onChange={(e) => setActiveProvider(e.target.value as LLMProvider)}
+              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
+            >
+              <option value="groq" className="bg-slate-950 text-slate-200">
+                ⚡ Groq Llama 3.3 (70B Fast)
+              </option>
+              <option value="openai" className="bg-slate-950 text-slate-200">
+                🧠 OpenAI GPT-4o Mini
+              </option>
+              <option value="gemini" className="bg-slate-950 text-slate-200">
+                💎 Gemini 2.5 Flash Vision
+              </option>
+              <option value="local" className="bg-slate-950 text-slate-200">
+                🔒 Qwen 2.5 14B Local (VPS)
+              </option>
+            </select>
+          </div>
+
+          <CameraVisionModule
+            onOpen={() => setActiveProvider("gemini")}
+            onCapture={(dataUrl) => {
+              setActiveProvider("gemini");
+              handleSendRef.current("Analiza esta imagen: ¿qué ves?", dataUrl);
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Badges de Estado de Integraciones MCP */}
+      <div className="px-4 py-1.5 bg-slate-950/60 border-b border-slate-800/60 flex items-center justify-end z-20">
+        <IntegrationStatusBadges />
+      </div>
+
+      {/* Centro de Voz — control compacto, prioriza audio sobre pantalla */}
+      <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800/60 flex items-center justify-center gap-3 z-20">
+        <JarvisOrb state={orbState} size={40} imageSrc={jarvisImageSrc} />
+        <VoiceModule
+          variant="hero"
+          onInterimResult={(text) => setInputMessage(text)}
+          onSpeechResult={(text) => {
+            setInputMessage(text);
+            handleSendRef.current(text);
+          }}
+          onStateChange={(voiceState) => {
+            if (voiceState === "transcribing") setOrbState("thinking");
+            else setOrbState(voiceState);
+          }}
+          lastJarvisMessage={lastJarvisReply}
+        />
+      </div>
+
+      {/* Contenedor Principal: Chat (el grafo RAG vive en un modal centrado aparte) */}
       <div className="flex-1 flex overflow-hidden relative z-10">
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           {/* Area de Mensajes */}
@@ -357,7 +541,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
                 <JarvisOrb state="thinking" size={36} imageSrc={jarvisImageSrc} />
                 <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl rounded-tl-none p-4 text-xs text-cyan-300 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                  <span>JARVIS conectando con {currentProvider.toUpperCase()}...</span>
+                  <span>JARVIS conectando con {activeProvider.toUpperCase()}...</span>
                 </div>
               </div>
             )}
@@ -367,41 +551,22 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
 
           {/* Input Fijo */}
           <div className="border-t border-slate-800/80 bg-[#050811]/95 backdrop-blur-2xl p-4 relative z-20">
-            <div className="w-full max-w-full flex flex-col gap-2">
-              {/* Prompts Sugeridos */}
+            <div className="max-w-4xl mx-auto flex flex-col gap-2">
+              {/* Botones Ejecutivos: invocan datos reales vía MCP bridge (no LLM) */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar text-xs">
                 {[
-                  {
-                    label: "📅 Daily Briefing",
-                    prompt:
-                      "Generar un Daily Briefing Ejecutivo para el Dr. Walther Parrado usando únicamente los datos reales disponibles.",
-                  },
-                  {
-                    label: "📧 Correos Gmail",
-                    prompt: "¿Cuál es el estado real de mi bandeja de Gmail ahora mismo?",
-                  },
-                  {
-                    label: "🗓️ Agenda Calendar",
-                    prompt: "¿Cuál es mi próxima cita real registrada en Calendar?",
-                  },
-                  {
-                    label: "🗺️ Rutas y Tráfico",
-                    prompt: "¿Tienes acceso en vivo a rutas y tráfico con Google Maps en este momento?",
-                  },
-                  {
-                    label: "📈 SEO & Tráfico Web",
-                    prompt: "Resume el estado real de SEO de waltherparrado.com que tengas disponible.",
-                  },
-                  {
-                    label: "✅ Mis Tareas Pendientes",
-                    prompt:
-                      "Con base en el estado real del ecosistema (Wompi, Meta Ads, Gmail, Calendar), ¿cuáles son mis prioridades ejecutivas de hoy?",
-                  },
-                ].map((item, idx) => (
+                  { label: "📰 Daily Briefing", kind: "briefing" as const },
+                  { label: "📧 Correos Gmail", kind: "gmail" as const },
+                  { label: "📅 Agenda Calendar", kind: "calendar" as const },
+                  { label: "🗺️ Rutas y Tráfico", kind: "maps" as const },
+                  { label: "🔍 SEO & Tráfico Web", kind: "seo" as const },
+                  { label: "📝 Mis Tareas Pendientes", kind: "tasks" as const },
+                ].map((item) => (
                   <button
-                    key={idx}
-                    onClick={() => handleSend(item.prompt)}
-                    className="px-3 py-1 rounded-full bg-slate-900/90 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/40 text-slate-400 hover:text-cyan-300 shrink-0 transition-all text-[11px]"
+                    key={item.kind}
+                    onClick={() => runQuickTool(item.kind)}
+                    disabled={isLoading}
+                    className="px-3 py-1 rounded-full bg-slate-900/90 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/40 text-slate-400 hover:text-cyan-300 shrink-0 transition-all text-[11px] disabled:opacity-40"
                   >
                     {item.label}
                   </button>
@@ -428,19 +593,6 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
                   <ImageUploadModule
                     onImageSelected={setSelectedImage}
                     selectedImage={selectedImage}
-                  />
-
-                  <CameraCaptureModule onImageSelected={setSelectedImage} />
-
-                  <VoiceModule
-                    onInterimResult={(text) => setInputMessage(text)}
-                    onSpeechResult={(text) => {
-                      setInputMessage(text);
-                      setOrbState("listening");
-                      handleSendRef.current(text);
-                    }}
-                    lastJarvisMessage={lastJarvisReply}
-                    autoSpeak={false}
                   />
 
                   <input

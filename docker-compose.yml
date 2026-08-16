@@ -15,6 +15,7 @@ services:
       - JARVIS_FLASK_API_URL=http://31.97.145.8:5000/api/chat
       - SUPABASE_INTERNAL_URL=http://supabase-kong:8000
       - TOOLS_BRIDGE_URL=http://tools-bridge:4100
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     networks:
       - default
       - supabase_default

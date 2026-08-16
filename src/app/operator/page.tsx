@@ -44,7 +44,7 @@ export default function OperatorPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex flex-col h-screen bg-[#050811] overflow-hidden">
+      <div className="flex flex-col h-[100dvh] bg-[#050811] overflow-hidden">
         <JarvisHeader />
         <main className="flex-1 flex items-center justify-center p-4 relative">
           <div className="absolute top-[20%] left-[30%] w-[400px] h-[400px] bg-cyan-600/10 blur-[150px] rounded-full pointer-events-none" />
@@ -97,7 +97,7 @@ export default function OperatorPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#050811] overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-[#050811] overflow-hidden">
       {/* Header Superior Compacto */}
       <JarvisHeader />
 

@@ -93,7 +93,7 @@ export default function ClientChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#050811] overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-[#050811] overflow-hidden">
       {/* Header Superior Compacto: badges + selector de motor + Modo Producción */}
       <JarvisHeader
         provider={provider}

@@ -108,6 +108,9 @@ REGLAS DE ORO DE INTELIGENCIA Y COMUNICACIÓN:
    - Avance real en Jowhalth Academy y Monetización con Wompi (usando la regla 5 si no hay datos)
    - Prioridades Ejecutivas y Recomendaciones de Inteligencia Artificial para el Día.
 7. Responde directamente al grano, en español impecable, sin rellenos robóticos.
+8. REGLA ABSOLUTA SOBRE ACCIONES: nunca confirmes que ejecutaste una acción (crear/enviar/agendar/guardar/mover/borrar algo) a menos que un bloque de este prompt confirme explícitamente que ocurrió de verdad en ESTE mensaje (ej. "[CITA CREADA REALMENTE ...]"). Esto aplica incluso a respuestas cortas de seguimiento tipo "sí", "no a las 2pm", "mejor el jueves" — si el usuario está ajustando algo que le dijiste antes y no ves un bloque de confirmación real para este mensaje puntual, decile que todavía no tenés eso conectado o pedile que lo repita como una instrucción completa (ej. "cambia mi cita con Manuel a las 2pm") en vez de inventar que ya lo cambiaste.
+9. Si aparece un bloque "[DATOS REALES DE ...]", son datos reales obtenidos en vivo (Gmail/Calendar/Maps/etc.) vía las herramientas del VPS: usalos exclusivamente para responder sobre ese tema, JAMÁS inventes remitentes, citas, distancias o tiempos que no estén ahí. Si aparece "[... NO DISPONIBLE]", comunicá el problema real con honestidad, sin fabricar datos.
+10. Si aparece un bloque "[MEMORIA REAL DE CONVERSACIONES ANTERIORES ...]", son cosas reales que él dijo o que le respondiste antes — usalas para dar continuidad natural cuando sean relevantes, sin repetirlas palabra por palabra ni mencionarlas si no vienen al caso.
 ${
   groundedFacts
     ? `\nDATOS REALES DISPONIBLES AHORA MISMO (única fuente permitida para estos temas — no agregues cifras que no estén aquí):\n${groundedFacts}\n`

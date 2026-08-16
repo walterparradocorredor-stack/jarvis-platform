@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/requireAuth";
 import { buildJarvisSystemPrompt, fetchGroundedFacts } from "@/lib/prompts";
+import { buildToolContext } from "@/lib/toolsIntent";
+import { retrieveRelevantMemory, formatMemoryContext, saveMemory } from "@/lib/memory";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,9 +12,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { message, history = [] } = body;
     let { provider = "local", apiKey } = body;
+    const conversationId = body.conversationId || "default";
+    // Si el cliente eligió explícitamente un proveedor (selector, o el fix
+    // automático de Cámara/Visión a Gemini), respetarlo — no dejar que la
+    // config global de Supabase lo pise por debajo.
+    const providerExplicit = Boolean(body.provider);
+
+    // Datos reales de Gmail/Calendar/Maps si el mensaje los requiere (MCP bridge del VPS)
+    const toolContext = message ? await buildToolContext(message) : null;
+    // Memoria real de conversaciones anteriores (pgvector), no solo la sesión actual
+    const memoryContext = message ? formatMemoryContext(await retrieveRelevantMemory(message)) : null;
+    if (message) await saveMemory(conversationId, "user", message);
 
     const now = new Date();
     const currentDateTimeStr = now.toLocaleDateString("es-CO", {
+      timeZone: "America/Bogota",
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -23,6 +37,11 @@ export async function POST(request: NextRequest) {
 
     const groundedFacts = await fetchGroundedFacts();
     const DYNAMIC_JARVIS_SYSTEM_PROMPT = buildJarvisSystemPrompt(currentDateTimeStr, groundedFacts);
+
+    const contextBlocks = [toolContext, memoryContext].filter(Boolean).join("\n\n");
+    const finalSystemPrompt = contextBlocks
+      ? `${DYNAMIC_JARVIS_SYSTEM_PROMPT}\n\n${contextBlocks}`
+      : DYNAMIC_JARVIS_SYSTEM_PROMPT;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "Mensaje requerido" }, { status: 400 });
@@ -45,7 +64,7 @@ export async function POST(request: NextRequest) {
         const rows = await dbRes.json();
         const cfg = rows?.[0]?.content;
         if (cfg) {
-          if (cfg.activeProvider) {
+          if (!providerExplicit && cfg.activeProvider) {
             provider = cfg.activeProvider;
           }
           if (!apiKey) {
@@ -90,7 +109,7 @@ export async function POST(request: NextRequest) {
           messages: [
             {
               role: "system",
-              content: DYNAMIC_JARVIS_SYSTEM_PROMPT,
+              content: finalSystemPrompt,
             },
             ...history,
             { role: "user", content: userContent },
@@ -106,6 +125,7 @@ export async function POST(request: NextRequest) {
 
       const groqData = await groqRes.json();
       const reply = groqData.choices?.[0]?.message?.content || "Sin respuesta";
+      await saveMemory(conversationId, "assistant", reply);
       return NextResponse.json({ reply, provider: "groq" });
     }
 
@@ -138,7 +158,7 @@ export async function POST(request: NextRequest) {
           messages: [
             {
               role: "system",
-              content: DYNAMIC_JARVIS_SYSTEM_PROMPT,
+              content: finalSystemPrompt,
             },
             ...history,
             { role: "user", content: userContent },
@@ -153,6 +173,7 @@ export async function POST(request: NextRequest) {
 
       const oaiData = await oaiRes.json();
       const reply = oaiData.choices?.[0]?.message?.content || "Sin respuesta";
+      await saveMemory(conversationId, "assistant", reply);
       return NextResponse.json({ reply, provider: "openai" });
     }
 
@@ -167,7 +188,7 @@ export async function POST(request: NextRequest) {
       }
 
       const { image } = body;
-      const parts: any[] = [{ text: `${DYNAMIC_JARVIS_SYSTEM_PROMPT}\n\nEl usuario pregunta: ${message}` }];
+      const parts: any[] = [{ text: `${finalSystemPrompt}\n\nEl usuario pregunta: ${message}` }];
 
       if (image && typeof image === "string" && image.startsWith("data:image")) {
         const [meta, base64Data] = image.split(",");
@@ -182,7 +203,7 @@ export async function POST(request: NextRequest) {
       }
 
       const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -204,6 +225,7 @@ export async function POST(request: NextRequest) {
       const geminiData = await geminiRes.json();
       const reply =
         geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta";
+      await saveMemory(conversationId, "assistant", reply);
       return NextResponse.json({ reply, provider: "gemini" });
     }
 
@@ -219,8 +241,10 @@ export async function POST(request: NextRequest) {
 
       if (flaskRes.ok) {
         const flaskData = await flaskRes.json();
+        const reply = flaskData.reply || flaskData.response || flaskData.message;
+        await saveMemory(conversationId, "assistant", reply);
         return NextResponse.json({
-          reply: flaskData.reply || flaskData.response || flaskData.message,
+          reply,
           provider: "local",
         });
       }

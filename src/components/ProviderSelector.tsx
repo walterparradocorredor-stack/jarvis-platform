@@ -190,7 +190,7 @@ export default function ProviderSelector({
               Cloud
             </span>
           </div>
-          <p className="text-[10px] text-slate-400 line-clamp-1">Gemini 1.5 Flash / Pro</p>
+          <p className="text-[10px] text-slate-400 line-clamp-1">Gemini 2.5 Flash / Pro</p>
         </button>
 
         {/* LOCAL LLAMA 3.1 */}
