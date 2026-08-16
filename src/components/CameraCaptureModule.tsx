@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Camera, X, Aperture } from "lucide-react";
 
 interface CameraCaptureModuleProps {
@@ -74,43 +75,45 @@ export default function CameraCaptureModule({ onImageSelected }: CameraCaptureMo
         <span className="hidden sm:inline">Cámara</span>
       </button>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="relative w-full max-w-lg bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-              <span className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                <Camera className="w-4 h-4 text-cyan-400" /> Captura de Cámara — Visión JARVIS
-              </span>
-              <button
-                type="button"
-                onClick={closeCamera}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {isOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="relative w-full max-w-lg bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+                <span className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-cyan-400" /> Captura de Cámara — Visión JARVIS
+                </span>
+                <button
+                  type="button"
+                  onClick={closeCamera}
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-            <div className="relative bg-black aspect-video flex items-center justify-center">
-              {error ? (
-                <p className="text-red-400 text-sm text-center px-6">{error}</p>
-              ) : (
-                <video ref={videoRef} className="w-full h-full object-contain" muted playsInline />
-              )}
-            </div>
+              <div className="relative bg-black aspect-video flex items-center justify-center">
+                {error ? (
+                  <p className="text-red-400 text-sm text-center px-6">{error}</p>
+                ) : (
+                  <video ref={videoRef} className="w-full h-full object-contain" muted playsInline />
+                )}
+              </div>
 
-            <div className="p-4 flex justify-center">
-              <button
-                type="button"
-                onClick={capture}
-                disabled={!!error}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 disabled:cursor-not-allowed text-slate-950 font-bold text-sm transition-all"
-              >
-                <Aperture className="w-4 h-4" /> Capturar
-              </button>
+              <div className="p-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={capture}
+                  disabled={!!error}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 disabled:cursor-not-allowed text-slate-950 font-bold text-sm transition-all"
+                >
+                  <Aperture className="w-4 h-4" /> Capturar
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 }
