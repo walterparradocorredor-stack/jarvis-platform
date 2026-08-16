@@ -27,16 +27,7 @@ const PROVIDERS: {
 
 export default function ProviderPill({ currentProvider, onSelectProvider, productionMode }: ProviderPillProps) {
   const [open, setOpen] = useState(false);
-  const [keys, setKeys] = useState<Record<string, string>>({});
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setKeys({
-      groq: localStorage.getItem("jarvis_groq_key") || "",
-      openai: localStorage.getItem("jarvis_openai_key") || "",
-      gemini: localStorage.getItem("jarvis_gemini_key") || "",
-    });
-  }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -48,16 +39,28 @@ export default function ProviderPill({ currentProvider, onSelectProvider, produc
 
   const active = PROVIDERS.find((p) => p.id === currentProvider) || PROVIDERS[0];
 
-  const handleSelect = (p: (typeof PROVIDERS)[number]) => {
+  const handleSelect = async (p: (typeof PROVIDERS)[number]) => {
     if (productionMode && !p.productionSafe) return; // Modo Producción bloquea el motor local
     localStorage.setItem("jarvis_active_provider", p.id);
-    onSelectProvider(p.id, keys[p.id] || "");
-    supabase
-      .from("cms_content")
-      .update({ content: { activeProvider: p.id, ...keys } })
-      .eq("id", "jarvis_config")
-      .then();
+    onSelectProvider(p.id);
     setOpen(false);
+    // Merge real: leer el content actual y solo tocar activeProvider — un
+    // update({ content: {...} }) directo REEMPLAZA toda la columna jsonb y
+    // borra las API keys reales (groqKey/openaiKey/geminiKey) guardadas ahí.
+    try {
+      const { data } = await supabase
+        .from("cms_content")
+        .select("content")
+        .eq("id", "jarvis_config")
+        .single();
+      const current = (data?.content as Record<string, unknown>) || {};
+      await supabase
+        .from("cms_content")
+        .update({ content: { ...current, activeProvider: p.id } })
+        .eq("id", "jarvis_config");
+    } catch {
+      // No bloquear el cambio de motor en pantalla si falla el guardado remoto.
+    }
   };
 
   return (
