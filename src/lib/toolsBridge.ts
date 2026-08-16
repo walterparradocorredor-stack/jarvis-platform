@@ -131,6 +131,36 @@ export async function archiveGmailMessage(id: string): Promise<{ ok: boolean; er
   }
 }
 
+export async function sendGmailMessage(
+  to: string,
+  subject: string,
+  body: string
+): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/gmail/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, subject, body }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json();
+    return res.ok && data.ok ? { ok: true, messageId: data.data?.id } : { ok: false, error: data.error };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+}
+
+export async function resolveGmailContact(
+  name: string
+): Promise<{ ok: boolean; email?: string; error?: string }> {
+  try {
+    const { ok, data } = await bridgeFetch(`/gmail/resolve-contact?name=${encodeURIComponent(name)}`);
+    return ok ? { ok: true, email: data.data?.email } : { ok: false, error: data.error };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+}
+
 export interface CalendarEventItem {
   id: string;
   title: string;

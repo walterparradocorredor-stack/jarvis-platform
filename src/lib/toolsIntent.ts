@@ -3,6 +3,8 @@ import {
   searchGmail,
   trashGmailMessage,
   archiveGmailMessage,
+  sendGmailMessage,
+  resolveGmailContact,
   getCalendarAgenda,
   createCalendarEvent,
   deleteCalendarEvent,
@@ -38,6 +40,8 @@ const GMAIL_READ_ONE_RE = /\b(resum[ií](?:me|r)|lee(?:me)?|qu[eé] dice)\b.*\b(
 const GMAIL_DELETE_RE = /\b(?:borr[aá](?:r)?|elimin[aá](?:r)?)\s+(?:el\s+|ese\s+|ese\s+mismo\s+|ese\s+ultimo\s+|el\s+ultimo\s+)*(?:correo|email|e-?mail)\b/i;
 // Archivar/organizar un correo: "archiva/archivá/organiza/organizá el correo de X"
 const GMAIL_ARCHIVE_RE = /\b(?:archiv[aá](?:r)?|organiz[aá](?:r)?|guard[aá](?:r)?)\s+(?:el\s+|ese\s+)*(?:correo|email|e-?mail)\b/i;
+// Enviar un correo nuevo: "mandale/enviale/escribile un correo a X diciendo Y"
+const GMAIL_SEND_RE = /\b(?:m[aá]nda(?:le|selo)?|env[ií][aá](?:le|selo)?|escr[ií]be(?:le|selo)?|escrib[ií](?:le|selo)?|redact[aá](?:r|me)?)\s+(?:un\s+|el\s+)?(?:correo|email|e-?mail)\b/i;
 const CALENDAR_RE = /\b(agend\w*|calendario|cita|citas|reuni[oó]n|reuniones|calendar)\b/i;
 // Crear cita: "crea/creá/agenda/agendá/programa/programá una cita/reunión con X en Y a las Z"
 const CALENDAR_CREATE_RE = /\b(?:cre[aá](?:r|me)?|agend(?:[aá]|ar|ame)|program[aá](?:r|me)?)\s+(?:una\s+)?(?:cita|reuni[oó]n|evento)\b/i;
@@ -282,6 +286,56 @@ async function matchGmailMessage(message: string): Promise<GmailMatch> {
   };
 }
 
+interface DraftEmail {
+  to: string; // dirección de correo, o un nombre si no se pudo resolver
+  toIsEmail: boolean;
+  subject: string;
+  body: string;
+}
+
+/**
+ * Extrae destinatario/asunto/cuerpo de un pedido en lenguaje natural
+ * ("mandale un correo a Juan diciendo que llego tarde a la reunión") vía
+ * Gemini. Redactar un buen asunto+cuerpo a partir de una frase dictada es
+ * más robusto con el LLM que con regex — mismo criterio que ya se usa para
+ * extraer fecha/hora de una cita nueva.
+ */
+async function extractDraftEmail(message: string): Promise<DraftEmail | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const prompt = `Del siguiente mensaje, extraé los datos para redactar y enviar un correo real. Respondé SOLO con un JSON válido, sin texto adicional:
+{"to": "dirección de correo o nombre de la persona tal como la mencionó el usuario", "subject": "asunto corto y claro", "body": "cuerpo del correo redactado en tono profesional pero natural, en español, basado en lo que pidió el usuario — no inventes contenido que el usuario no haya dado a entender"}
+Si no hay suficiente información para saber a quién o qué decir, respondé exactamente: {"error": "sin datos suficientes"}
+
+Mensaje: "${message}"`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return null;
+    const parsed = JSON.parse(text);
+    if (parsed.error || !parsed.to || !parsed.subject || !parsed.body) return null;
+    const toIsEmail = /[\w.+-]+@[\w-]+\.[\w.-]+/.test(parsed.to);
+    return { to: parsed.to, toIsEmail, subject: parsed.subject, body: parsed.body };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Detecta si el mensaje del usuario necesita datos reales de Gmail/Calendar/Maps
  * y devuelve un bloque de contexto para inyectar en el system prompt, con
@@ -291,7 +345,35 @@ async function matchGmailMessage(message: string): Promise<GmailMatch> {
 export async function buildToolContext(message: string): Promise<string | null> {
   const blocks: string[] = [];
 
-  if (GMAIL_DELETE_RE.test(message) || GMAIL_ARCHIVE_RE.test(message)) {
+  if (GMAIL_SEND_RE.test(message)) {
+    const draft = await extractDraftEmail(message);
+    if (!draft) {
+      blocks.push(
+        `[NO SE PUDO REDACTAR EL CORREO] No hay suficiente información (destinatario, asunto o contenido) para armar el correo. Pregúntale al usuario a quién, sobre qué y qué quiere decir — NO inventes que lo enviaste.`
+      );
+    } else {
+      let toEmail = draft.to;
+      if (!draft.toIsEmail) {
+        const resolved = await resolveGmailContact(draft.to);
+        if (!resolved.ok || !resolved.email) {
+          blocks.push(
+            `[NO SE PUDO RESOLVER EL DESTINATARIO] No se encontró una dirección de correo real para "${draft.to}" en el historial de Gmail. Pregúntale al usuario la dirección exacta — JAMÁS inventes un correo electrónico.`
+          );
+          toEmail = "";
+        } else {
+          toEmail = resolved.email;
+        }
+      }
+      if (toEmail) {
+        const result = await sendGmailMessage(toEmail, draft.subject, draft.body);
+        blocks.push(
+          result.ok
+            ? `[CORREO ENVIADO REALMENTE POR GMAIL a ${toEmail}] Asunto: "${draft.subject}". Confirma al usuario que se envió, con el destinatario y asunto exactos.`
+            : `[NO SE PUDO ENVIAR EL CORREO] Error real: "${result.error}". Informa este error tal cual — JAMÁS confirmes el envío si esto falló.`
+        );
+      }
+    }
+  } else if (GMAIL_DELETE_RE.test(message) || GMAIL_ARCHIVE_RE.test(message)) {
     const isDelete = GMAIL_DELETE_RE.test(message);
     const match = await matchGmailMessage(message);
     if (match.status === "not_found") {
