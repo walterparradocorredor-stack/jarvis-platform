@@ -21,7 +21,7 @@ const PROVIDERS: {
 }[] = [
   { id: "groq", label: "Groq", sublabel: "GPT-OSS 120B (Fast)", icon: Zap, color: "text-cyan-400", productionSafe: true },
   { id: "openai", label: "OpenAI", sublabel: "GPT-4o mini", icon: Cloud, color: "text-blue-400", productionSafe: true },
-  { id: "gemini", label: "Gemini", sublabel: "1.5 Flash", icon: Sparkles, color: "text-indigo-400", productionSafe: true },
+  { id: "gemini", label: "Gemini", sublabel: "2.5 Flash", icon: Sparkles, color: "text-indigo-400", productionSafe: true },
   { id: "local", label: "Llama 3.1", sublabel: "Motor local VPS", icon: Server, color: "text-purple-400", productionSafe: false },
 ];
 

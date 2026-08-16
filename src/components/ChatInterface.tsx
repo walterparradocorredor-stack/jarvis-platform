@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
-import { Send, User, Sparkles, Check, Copy, Brain, Download, Cpu, Database, Bot, Terminal } from "lucide-react";
+import { Send, User, Sparkles, Check, Copy } from "lucide-react";
 import { ChatMessage, LLMProvider } from "@/lib/jarvisApi";
 import { supabase } from "@/lib/supabase";
 import MemoryNeuralNetwork from "@/components/MemoryNeuralNetwork";
@@ -13,7 +13,6 @@ import MemoryManagerModal from "@/components/MemoryManagerModal";
 import AgentHubModal from "@/components/AgentHubModal";
 import DevOpsConsoleModal from "@/components/DevOpsConsoleModal";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
-import IntegrationStatusBadges from "@/components/IntegrationStatusBadges";
 import CameraVisionModule from "@/components/CameraVisionModule";
 
 interface ChatInterfaceProps {
@@ -338,99 +337,6 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
       {/* Fondo Neón */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(6,182,212,0.15),rgba(255,255,255,0))] pointer-events-none" />
 
-      {/* Top Controls Bar */}
-      <div className="px-4 py-2 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur-md flex items-center justify-between z-20 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowNeuralNet(!showNeuralNet)}
-            className={`hidden lg:flex px-3 py-1.5 rounded-xl border text-xs font-semibold items-center gap-2 transition-all ${
-              showNeuralNet
-                ? "bg-cyan-950/90 border-cyan-500/50 text-cyan-300 shadow-lg shadow-cyan-500/10"
-                : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <Brain className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">
-              {showNeuralNet ? "Ocultar Memoria RAG" : "Ver Memoria RAG"}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setShowMemoryModal(true)}
-            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/40 transition-all"
-            title="Abrir gestor de vectores de memoria RAG"
-          >
-            <Database className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden md:inline">Vectores RAG</span>
-          </button>
-
-          <button
-            onClick={() => setShowAgentModal(true)}
-            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-emerald-300 hover:border-emerald-500/40 transition-all"
-            title="Monitoreo de Agentes IA Corporativos"
-          >
-            <Bot className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden md:inline">Agentes IA</span>
-          </button>
-
-          <button
-            onClick={() => setShowDevOpsModal(true)}
-            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-300 hover:text-amber-300 hover:border-amber-500/40 transition-all"
-            title="Consola DevOps Manuel (CEO)"
-          >
-            <Terminal className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden lg:inline">DevOps</span>
-          </button>
-
-          <button
-            onClick={handleExport}
-            title="Exportar conversación como Markdown"
-            className="px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-2 bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 transition-all"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Exportar</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Selector Dinámico de Motor LLM */}
-          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 py-1 text-xs shadow-inner">
-            <Cpu className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <select
-              value={activeProvider}
-              onChange={(e) => setActiveProvider(e.target.value as LLMProvider)}
-              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
-            >
-              <option value="groq" className="bg-slate-950 text-slate-200">
-                ⚡ Groq Llama 3.3 (70B Fast)
-              </option>
-              <option value="openai" className="bg-slate-950 text-slate-200">
-                🧠 OpenAI GPT-4o Mini
-              </option>
-              <option value="gemini" className="bg-slate-950 text-slate-200">
-                💎 Gemini 2.5 Flash Vision
-              </option>
-              <option value="local" className="bg-slate-950 text-slate-200">
-                🔒 Qwen 2.5 14B Local (VPS)
-              </option>
-            </select>
-          </div>
-
-          <CameraVisionModule
-            onOpen={() => setActiveProvider("gemini")}
-            onCapture={(dataUrl) => {
-              setActiveProvider("gemini");
-              handleSendRef.current("Analiza esta imagen: ¿qué ves?", dataUrl);
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Badges de Estado de Integraciones MCP */}
-      <div className="px-4 py-1.5 bg-slate-950/60 border-b border-slate-800/60 flex items-center justify-end z-20">
-        <IntegrationStatusBadges />
-      </div>
-
       {/* Centro de Voz — control compacto, prioriza audio sobre pantalla */}
       <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800/60 flex items-center justify-center gap-3 z-20">
         <JarvisOrb state={orbState} size={40} imageSrc={jarvisImageSrc} />
@@ -593,6 +499,14 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
                   <ImageUploadModule
                     onImageSelected={setSelectedImage}
                     selectedImage={selectedImage}
+                  />
+
+                  <CameraVisionModule
+                    onOpen={() => setActiveProvider("gemini")}
+                    onCapture={(dataUrl) => {
+                      setActiveProvider("gemini");
+                      handleSendRef.current("Analiza esta imagen: ¿qué ves?", dataUrl);
+                    }}
                   />
 
                   <input

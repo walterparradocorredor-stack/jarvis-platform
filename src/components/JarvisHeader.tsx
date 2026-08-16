@@ -36,7 +36,7 @@ export default function JarvisHeader({
 
   return (
     <header className="border-b border-cyan-950/60 bg-[#050811]/90 backdrop-blur-xl sticky top-0 z-50">
-      <div className="max-w-[1600px] mx-auto px-3 md:px-6 py-2 flex flex-wrap items-center gap-3">
+      <div className="max-w-[1600px] mx-auto px-3 md:px-6 py-1.5 flex flex-wrap items-center gap-3">
         {/* Brand logo — compacto */}
         <Link href="/chat" className="flex items-center gap-2 group shrink-0">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">

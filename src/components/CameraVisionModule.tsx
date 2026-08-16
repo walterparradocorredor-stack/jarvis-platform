@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Camera, X, Aperture, Loader2 } from "lucide-react";
 
 interface CameraVisionModuleProps {
@@ -95,73 +96,75 @@ export default function CameraVisionModule({ onCapture, onOpen }: CameraVisionMo
         <Camera className="w-4 h-4 text-cyan-400" />
       </button>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-[999] bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 p-4 sm:p-8">
-          <div className="flex items-center justify-between w-full max-w-5xl">
-            <span className="text-sm font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-2">
-              👁️ JARVIS — Modo Visión
-              <span className="text-[10px] font-mono bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-800/50">
-                Gemini 2.5 Flash Vision
+      {isOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[999] bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center gap-4 p-4 sm:p-8">
+            <div className="flex items-center justify-between w-full max-w-5xl">
+              <span className="text-sm font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-2">
+                👁️ JARVIS — Modo Visión
+                <span className="text-[10px] font-mono bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-800/50">
+                  Gemini 2.5 Flash Vision
+                </span>
               </span>
-            </span>
-            <button
-              onClick={closeCamera}
-              className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+              <button
+                onClick={closeCamera}
+                className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-          {/* Visor panorámico HD: ancho amplio en PC (hasta 1280px), alto mínimo
-              real de 480px para que documentos/imágenes se vean con claridad. */}
-          <div className="relative w-full max-w-5xl min-h-[280px] sm:min-h-[420px] lg:min-h-[540px] aspect-video bg-black rounded-2xl overflow-hidden border-2 border-cyan-500/40 shadow-[0_0_60px_rgba(6,182,212,0.2)]">
-            {error ? (
-              <div className="w-full h-full flex items-center justify-center text-center text-sm text-amber-300 p-6">
-                {error}
-              </div>
-            ) : (
-              <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="absolute inset-0 w-full h-full object-cover bg-black"
-                />
-
-                {/* Marco esquinero futurista */}
-                <div className="pointer-events-none absolute inset-4 border border-cyan-400/20 rounded-xl">
-                  <div className="absolute -top-px -left-px w-6 h-6 border-t-2 border-l-2 border-cyan-400 rounded-tl-lg" />
-                  <div className="absolute -top-px -right-px w-6 h-6 border-t-2 border-r-2 border-cyan-400 rounded-tr-lg" />
-                  <div className="absolute -bottom-px -left-px w-6 h-6 border-b-2 border-l-2 border-cyan-400 rounded-bl-lg" />
-                  <div className="absolute -bottom-px -right-px w-6 h-6 border-b-2 border-r-2 border-cyan-400 rounded-br-lg" />
+            {/* Visor panorámico HD: ancho amplio en PC (hasta 1280px), alto mínimo
+                real de 480px para que documentos/imágenes se vean con claridad. */}
+            <div className="relative w-full max-w-5xl min-h-[280px] sm:min-h-[420px] lg:min-h-[540px] aspect-video bg-black rounded-2xl overflow-hidden border-2 border-cyan-500/40 shadow-[0_0_60px_rgba(6,182,212,0.2)]">
+              {error ? (
+                <div className="w-full h-full flex items-center justify-center text-center text-sm text-amber-300 p-6">
+                  {error}
                 </div>
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="absolute inset-0 w-full h-full object-cover bg-black"
+                  />
 
-                {isStarting && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 text-slate-300 text-xs">
-                    <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-                    Iniciando cámara HD...
+                  {/* Marco esquinero futurista */}
+                  <div className="pointer-events-none absolute inset-4 border border-cyan-400/20 rounded-xl">
+                    <div className="absolute -top-px -left-px w-6 h-6 border-t-2 border-l-2 border-cyan-400 rounded-tl-lg" />
+                    <div className="absolute -top-px -right-px w-6 h-6 border-t-2 border-r-2 border-cyan-400 rounded-tr-lg" />
+                    <div className="absolute -bottom-px -left-px w-6 h-6 border-b-2 border-l-2 border-cyan-400 rounded-bl-lg" />
+                    <div className="absolute -bottom-px -right-px w-6 h-6 border-b-2 border-r-2 border-cyan-400 rounded-br-lg" />
                   </div>
-                )}
-              </>
+
+                  {isStarting && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 text-slate-300 text-xs">
+                      <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+                      Iniciando cámara HD...
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <canvas ref={canvasRef} className="hidden" />
+
+            {!error && (
+              <button
+                type="button"
+                onClick={capture}
+                disabled={isStarting}
+                className="px-6 py-3.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-cyan-500/30 active:scale-95 transition-all disabled:opacity-40"
+              >
+                <Aperture className="w-5 h-5" />
+                Capturar y Analizar
+              </button>
             )}
-          </div>
-
-          <canvas ref={canvasRef} className="hidden" />
-
-          {!error && (
-            <button
-              type="button"
-              onClick={capture}
-              disabled={isStarting}
-              className="px-6 py-3.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-sm flex items-center gap-2 shadow-lg shadow-cyan-500/30 active:scale-95 transition-all disabled:opacity-40"
-            >
-              <Aperture className="w-5 h-5" />
-              Capturar y Analizar
-            </button>
-          )}
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 }
