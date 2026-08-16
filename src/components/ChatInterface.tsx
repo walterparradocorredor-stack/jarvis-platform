@@ -296,11 +296,11 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
         } else if (kind === "gmail") {
           const res = await fetch("/api/tools/gmail-summary");
           const data = await res.json();
-          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo consultar Gmail: ${data.error}`);
+          pushJarvisMessage(data.text || `⚠️ No se pudo consultar Gmail: ${data.error}`);
         } else if (kind === "calendar") {
           const res = await fetch("/api/tools/calendar-agenda?range=today");
           const data = await res.json();
-          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo consultar Calendar: ${data.error}`);
+          pushJarvisMessage(data.text || `⚠️ No se pudo consultar Calendar: ${data.error}`);
         } else if (kind === "maps") {
           const destination = window.prompt("¿Hacia dónde? (destino)");
           if (!destination) {
@@ -313,15 +313,15 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
             `/api/tools/maps-route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`
           );
           const data = await res.json();
-          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo calcular la ruta: ${data.error}`);
+          pushJarvisMessage(data.text || `⚠️ No se pudo calcular la ruta: ${data.error}`);
         } else if (kind === "seo") {
           const res = await fetch("/api/tools/search-console");
           const data = await res.json();
-          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo consultar Search Console: ${data.error}`);
+          pushJarvisMessage(data.text || `⚠️ No se pudo consultar Search Console: ${data.error}`);
         } else if (kind === "tasks") {
           const res = await fetch("/api/tools/tasks");
           const data = await res.json();
-          pushJarvisMessage(res.ok ? data.text : `⚠️ No se pudo consultar Tasks: ${data.error}`);
+          pushJarvisMessage(data.text || `⚠️ No se pudo consultar Tasks: ${data.error}`);
         }
       } catch (err: any) {
         pushJarvisMessage(`⚠️ Error de conexión con las herramientas MCP: ${err.message}`);

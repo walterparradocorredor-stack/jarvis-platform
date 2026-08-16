@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const days = Number(request.nextUrl.searchParams.get("days")) || 28;
   const result = await getSearchConsolePerformance(siteUrl, days);
   if (!result.ok || !result.performance) {
-    return NextResponse.json({ error: result.error || "No se pudo consultar Search Console" }, { status: 502 });
+    return NextResponse.json({ error: result.error || "No se pudo consultar Search Console" }, { status: 200 });
   }
   return NextResponse.json({ text: formatSearchConsole(result.performance), raw: result.performance });
 }

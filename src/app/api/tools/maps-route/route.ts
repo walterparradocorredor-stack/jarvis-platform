@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   }
   const result = await getMapsRoute(origin, destination);
   if (!result.ok || !result.route) {
-    return NextResponse.json({ error: result.error || "No se pudo calcular la ruta" }, { status: 502 });
+    return NextResponse.json({ error: result.error || "No se pudo calcular la ruta" }, { status: 200 });
   }
   return NextResponse.json({
     text: formatMapsRoute(result.route, origin, destination),

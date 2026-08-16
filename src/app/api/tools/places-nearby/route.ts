@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   }
   const result = await getPlacesNearby(Number(lat), Number(lng), type);
   if (!result.ok) {
-    return NextResponse.json({ error: result.error || "No se pudo consultar Places" }, { status: 502 });
+    return NextResponse.json({ error: result.error || "No se pudo consultar Places" }, { status: 200 });
   }
   return NextResponse.json({ text: formatPlacesNearby(result.places || [], type), raw: result.places });
 }

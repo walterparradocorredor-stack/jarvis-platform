@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   }
   const result = await getWeatherCurrent(Number(lat), Number(lng));
   if (!result.ok || !result.weather) {
-    return NextResponse.json({ error: result.error || "No se pudo consultar el clima" }, { status: 502 });
+    return NextResponse.json({ error: result.error || "No se pudo consultar el clima" }, { status: 200 });
   }
   return NextResponse.json({ text: formatWeather(result.weather), raw: result.weather });
 }
