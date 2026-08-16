@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import {
   Mic,
   MicOff,
@@ -24,17 +24,22 @@ interface VoiceModuleProps {
 
 type VoiceState = "idle" | "listening" | "transcribing" | "speaking";
 
+export interface VoiceModuleHandle {
+  startRecording: () => void;
+  stopAndSend: () => void;
+}
+
 const BARGE_IN_THRESHOLD = 18; // RMS mínimo para considerar que Walter empezó a hablar
 const BARGE_IN_SUSTAIN_MS = 180; // tiempo sostenido para evitar falsos positivos (ruido)
 
-export default function VoiceModule({
+const VoiceModule = forwardRef<VoiceModuleHandle, VoiceModuleProps>(function VoiceModule({
   onSpeechResult,
   onInterimResult,
   lastJarvisMessage,
   onStateChange,
   onTtsAnalyser,
   variant = "compact",
-}: VoiceModuleProps) {
+}, ref) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [isMuted, setIsMuted] = useState(false);
   const [isConvoMode, setIsConvoMode] = useState(false);
@@ -306,6 +311,20 @@ export default function VoiceModule({
       await startRecording();
     }
   }, [voiceState, isConvoMode, startRecording, unlockAudioForMobile]);
+
+  // Control directo (no toggle) para el modo inmersivo JARVIS Core 3D:
+  // mantener pulsado el núcleo o la barra espaciadora llama esto directo,
+  // sin depender de que el botón #jarvis-voice-btn esté montado (no lo está
+  // si isConvoMode está activo) ni de simular clicks en el DOM.
+  useImperativeHandle(ref, () => ({
+    startRecording: () => {
+      unlockAudioForMobile();
+      if (voiceStateRef.current === "idle") startRecording();
+    },
+    stopAndSend: () => {
+      if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
+    },
+  }));
 
   // ─── TTS FLUIDO: Google Cloud Neural2 con fallback a voz del navegador ──────
   const bestBrowserVoice = useCallback(() => {
@@ -706,4 +725,6 @@ export default function VoiceModule({
       </button>
     </div>
   );
-}
+});
+
+export default VoiceModule;

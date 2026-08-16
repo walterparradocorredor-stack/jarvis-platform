@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import ParticleSunOrb from "@/components/ParticleSunOrb";
@@ -11,11 +11,13 @@ interface JarvisCoreImmersiveProps {
   analyser: AnalyserNode | null;
   responseText: string;
   orbState: "idle" | "listening" | "thinking" | "speaking";
+  onStartVoice: () => void;
+  onStopVoice: () => void;
 }
 
 const STATE_LABEL: Record<JarvisCoreImmersiveProps["orbState"], string> = {
   idle: "EN ESPERA",
-  listening: "ESCUCHANDO",
+  listening: "ESCUCHANDO...",
   thinking: "PROCESANDO",
   speaking: "HABLANDO",
 };
@@ -23,9 +25,9 @@ const STATE_LABEL: Record<JarvisCoreImmersiveProps["orbState"], string> = {
 /**
  * Vista 3D inmersiva "JARVIS Core" — pantalla completa con el orbe de
  * partículas al centro. Mantener pulsado el núcleo o la barra espaciadora
- * dispara el mismo botón de voz real (#jarvis-voice-btn) que ya existe en
- * VoiceModule: no reimplementa la captura de audio, solo la controla a
- * distancia (mousedown = empieza a grabar, mouseup = envía).
+ * llama directo a onStartVoice/onStopVoice (funciones reales expuestas por
+ * VoiceModule vía ref) — no simula clicks en el DOM, porque el botón real
+ * de voz no siempre está montado (ej. en modo conversación continua).
  */
 export default function JarvisCoreImmersive({
   isOpen,
@@ -33,34 +35,39 @@ export default function JarvisCoreImmersive({
   analyser,
   responseText,
   orbState,
+  onStartVoice,
+  onStopVoice,
 }: JarvisCoreImmersiveProps) {
   const pressedRef = useRef(false);
+  const [isPressed, setIsPressed] = useState(false);
 
-  const pressVoiceButton = useCallback(() => {
+  const press = () => {
     if (pressedRef.current) return;
     pressedRef.current = true;
-    document.getElementById("jarvis-voice-btn")?.click();
-  }, []);
+    setIsPressed(true);
+    onStartVoice();
+  };
 
-  const releaseVoiceButton = useCallback(() => {
+  const release = () => {
     if (!pressedRef.current) return;
     pressedRef.current = false;
-    document.getElementById("jarvis-voice-btn")?.click();
-  }, []);
+    setIsPressed(false);
+    onStopVoice();
+  };
 
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && !e.repeat) {
         e.preventDefault();
-        pressVoiceButton();
+        press();
       }
       if (e.code === "Escape") onClose();
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "Space") {
         e.preventDefault();
-        releaseVoiceButton();
+        release();
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -69,9 +76,13 @@ export default function JarvisCoreImmersive({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [isOpen, onClose, pressVoiceButton, releaseVoiceButton]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  const listening = isPressed || orbState === "listening";
+  const label = listening ? "ESCUCHANDO..." : STATE_LABEL[orbState];
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-[#03050c] flex flex-col items-center justify-center overflow-hidden">
@@ -92,25 +103,27 @@ export default function JarvisCoreImmersive({
       </div>
 
       <div
-        onMouseDown={pressVoiceButton}
-        onMouseUp={releaseVoiceButton}
-        onMouseLeave={releaseVoiceButton}
-        onTouchStart={(e) => {
-          e.preventDefault();
-          pressVoiceButton();
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          press();
         }}
-        onTouchEnd={(e) => {
-          e.preventDefault();
-          releaseVoiceButton();
+        onPointerUp={(e) => {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+          release();
         }}
+        onPointerCancel={release}
         className="relative cursor-pointer select-none touch-none w-full max-w-[440px] aspect-square flex items-center justify-center"
         title="Mantené pulsado para hablar"
       >
         <ParticleSunOrb analyser={analyser} active={isOpen} size={440} />
       </div>
 
-      <div className="mt-2 text-xs font-mono tracking-[0.3em] text-orange-300/70 uppercase">
-        {STATE_LABEL[orbState]}
+      <div
+        className={`mt-2 text-xs font-mono tracking-[0.3em] uppercase transition-all ${
+          listening ? "text-amber-300 animate-pulse font-bold text-sm" : "text-orange-300/70"
+        }`}
+      >
+        {label}
       </div>
 
       {responseText && (

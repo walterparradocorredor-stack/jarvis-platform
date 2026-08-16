@@ -5,7 +5,7 @@ import { Send, User, Sparkles, Check, Copy } from "lucide-react";
 import { ChatMessage, LLMProvider } from "@/lib/jarvisApi";
 import { supabase } from "@/lib/supabase";
 import MemoryNeuralNetwork from "@/components/MemoryNeuralNetwork";
-import VoiceModule from "@/components/VoiceModule";
+import VoiceModule, { VoiceModuleHandle } from "@/components/VoiceModule";
 import ImageUploadModule from "@/components/ImageUploadModule";
 import JarvisOrb from "@/components/JarvisOrb";
 import SlashCommandMenu, { SlashCommand } from "@/components/SlashCommandMenu";
@@ -65,6 +65,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
   const [slashQuery, setSlashQuery] = useState("");
   const [showImmersive, setShowImmersive] = useState(false);
   const [ttsAnalyser, setTtsAnalyser] = useState<AnalyserNode | null>(null);
+  const voiceModuleRef = useRef<VoiceModuleHandle>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -344,6 +345,7 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
       <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800/60 flex items-center justify-center gap-3 z-20">
         <JarvisOrb state={orbState} size={40} imageSrc={jarvisImageSrc} />
         <VoiceModule
+          ref={voiceModuleRef}
           variant="hero"
           onInterimResult={(text) => setInputMessage(text)}
           onSpeechResult={(text) => {
@@ -373,6 +375,8 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
         analyser={ttsAnalyser}
         responseText={lastJarvisReply}
         orbState={orbState}
+        onStartVoice={() => voiceModuleRef.current?.startRecording()}
+        onStopVoice={() => voiceModuleRef.current?.stopAndSend()}
       />
 
       {/* Contenedor Principal: Chat (el grafo RAG vive en un modal centrado aparte) */}
