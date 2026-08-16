@@ -88,6 +88,49 @@ export async function getGmailSummary(): Promise<{ ok: boolean; items?: EmailSum
   }
 }
 
+export interface EmailFull {
+  id: string;
+  from: string;
+  subject: string;
+  date: string;
+  body: string;
+}
+
+export async function searchGmail(query: string): Promise<{ ok: boolean; items?: EmailFull[]; error?: string }> {
+  try {
+    const { ok, data } = await bridgeFetch(`/gmail/search?q=${encodeURIComponent(query)}`);
+    return ok ? { ok: true, items: data.data } : { ok: false, error: data.error };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+}
+
+export async function trashGmailMessage(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/gmail/message/${encodeURIComponent(id)}/trash`, {
+      method: "POST",
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json();
+    return res.ok && data.ok ? { ok: true } : { ok: false, error: data.error };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+}
+
+export async function archiveGmailMessage(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/gmail/message/${encodeURIComponent(id)}/archive`, {
+      method: "POST",
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json();
+    return res.ok && data.ok ? { ok: true } : { ok: false, error: data.error };
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+}
+
 export interface CalendarEventItem {
   id: string;
   title: string;

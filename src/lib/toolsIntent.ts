@@ -1,5 +1,8 @@
 import {
   getGmailSummary,
+  searchGmail,
+  trashGmailMessage,
+  archiveGmailMessage,
   getCalendarAgenda,
   createCalendarEvent,
   deleteCalendarEvent,
@@ -23,21 +26,32 @@ import {
   formatYoutubeMetrics,
 } from "./toolsFormat";
 
+// OJO acentos: el imperativo voseo ("borrá", "cancelá", "archivá") termina
+// en vocal con tilde, sin "r" — muy natural al hablar/dictar por voz. Todas
+// las regex de verbos de esta sección usan [aá]/[eé] etc. para cubrir tanto
+// "borra"/"borrar" como "borrá" — un solo "borra(?:r)?" se comía el sin-tilde
+// nada más y dejaba pasar comandos de voz reales sin detectar.
 const GMAIL_RE = /\b(correo|correos|gmail|bandeja de entrada|inbox|email|e-?mail)s?\b/i;
+// Resumir/leer UN correo puntual: "resumime/leeme/qué dice el correo de X"
+const GMAIL_READ_ONE_RE = /\b(resum[ií](?:me|r)|lee(?:me)?|qu[eé] dice)\b.*\b(correo|email|e-?mail)\b/i;
+// Borrar un correo: "borra/borrá/elimina/eliminá el correo de X"
+const GMAIL_DELETE_RE = /\b(?:borr[aá](?:r)?|elimin[aá](?:r)?)\s+(?:el\s+|ese\s+|ese\s+mismo\s+|ese\s+ultimo\s+|el\s+ultimo\s+)*(?:correo|email|e-?mail)\b/i;
+// Archivar/organizar un correo: "archiva/archivá/organiza/organizá el correo de X"
+const GMAIL_ARCHIVE_RE = /\b(?:archiv[aá](?:r)?|organiz[aá](?:r)?|guard[aá](?:r)?)\s+(?:el\s+|ese\s+)*(?:correo|email|e-?mail)\b/i;
 const CALENDAR_RE = /\b(agend\w*|calendario|cita|citas|reuni[oó]n|reuniones|calendar)\b/i;
-// Crear cita: "crea/agenda/programa una cita/reunión con X en Y a las Z"
-const CALENDAR_CREATE_RE = /\b(?:crea(?:r|me)?|agend(?:a|ar|ame)|programa(?:r|me)?)\s+(?:una\s+)?(?:cita|reuni[oó]n|evento)\b/i;
-// Cancelar/borrar cita: "cancela/borra/elimina mi cita/reunión con X"
-const CALENDAR_DELETE_RE = /\b(?:cancela(?:r)?|borra(?:r)?|elimina(?:r)?|quita(?:r)?)\s+(?:la\s+|el\s+|los\s+|las\s+|mi\s+|mis\s+|un\s+|una\s+|ese\s+|esa\s+|esta\s+|este\s+)*(?:cita|reuni[oó]n|evento)/i;
-// Mover/reprogramar cita: "cambia/mueve/pasa/reprograma mi cita con X para las Y"
-const CALENDAR_UPDATE_RE = /\b(?:cambia(?:r)?|mueve|mover|pasa(?:r)?|reprograma(?:r)?|reagenda(?:r)?|actualiza(?:r)?)\s+(?:la\s+|el\s+|los\s+|las\s+|mi\s+|mis\s+|un\s+|una\s+|ese\s+|esa\s+|esta\s+|este\s+)*(?:cita|reuni[oó]n|evento|hora)/i;
+// Crear cita: "crea/creá/agenda/agendá/programa/programá una cita/reunión con X en Y a las Z"
+const CALENDAR_CREATE_RE = /\b(?:cre[aá](?:r|me)?|agend(?:[aá]|ar|ame)|program[aá](?:r|me)?)\s+(?:una\s+)?(?:cita|reuni[oó]n|evento)\b/i;
+// Cancelar/borrar cita: "cancela/cancelá/borra/borrá/elimina/eliminá mi cita/reunión con X"
+const CALENDAR_DELETE_RE = /\b(?:cancel[aá](?:r)?|borr[aá](?:r)?|elimin[aá](?:r)?|quit[aá](?:r)?)\s+(?:la\s+|el\s+|los\s+|las\s+|mi\s+|mis\s+|un\s+|una\s+|ese\s+|esa\s+|esta\s+|este\s+)*(?:cita|reuni[oó]n|evento)/i;
+// Mover/reprogramar cita: "cambia/cambiá/mueve/pasa/pasá/reprograma/reprogramá mi cita con X para las Y"
+const CALENDAR_UPDATE_RE = /\b(?:cambi[aá](?:r)?|mueve(?:me|la|lo)?|mov[eé](?:r|me)?|pas[aá](?:r)?|reprogram[aá](?:r)?|reagend[aá](?:r)?|actualiz[aá](?:r)?)\s+(?:la\s+|el\s+|los\s+|las\s+|mi\s+|mis\s+|un\s+|una\s+|ese\s+|esa\s+|esta\s+|este\s+)*(?:cita|reuni[oó]n|evento|hora)/i;
 const MAPS_RE = /\b(ruta|rutas|tr[aá]fico|c[oó]mo llegar|mapa|distancia|cu[aá]nto me demoro|cu[aá]nto (me )?tardo)\b/i;
 const ROUTE_PAIR_RE = /(?:de|desde)\s+(.+?)\s+(?:a|hasta|hacia)\s+(.+?)(?:[.?!]|$)/i;
 const WEATHER_RE = /\b(clima|pron[oó]stico|temperatura|va a llover|lluvia|est[aá] soleado)\b/i;
 const PLACES_RE = /\b(restaurante|restaurantes|hotel|hoteles|caf[eé]|lugares? cerca|cerca de m[ií]|d[oó]nde (como|almorzar|cenar))\b/i;
 const TASKS_RE = /\b(tareas? pendientes?|to-?do|google tasks|lista de tareas|pendientes por hacer|mis tareas)\b/i;
 // Crear tarea: "crea una tarea: X", "agregar tarea X", "recuérdame (que) X"
-const TASK_CREATE_RE = /\b(?:crea(?:r)?|agregar?|añadir|anota(?:r)?)\s+(?:una\s+)?tareas?\b\s*(?:que dice|de)?\s*[:\-]?\s*(.+)/i;
+const TASK_CREATE_RE = /\b(?:cre[aá](?:r)?|agreg[aá](?:r)?|añad(?:ir|í)|anot[aá](?:r)?)\s+(?:una\s+)?tareas?\b\s*(?:que dice|de)?\s*[:\-]?\s*(.+)/i;
 const TASK_REMIND_RE = /\brecu[eé]rdame(?:\s+que)?\s+(.+)/i;
 const SEO_RE = /\b(seo|tr[aá]fico web|search console|posicionamiento|clics? (de|en) (google|la web)|impresiones (de|en) google)\b/i;
 const YOUTUBE_RE = /\b(youtube|canal de youtube|suscriptores|mis videos)\b/i;
@@ -224,6 +238,50 @@ Quiere mover/cambiar la hora de uno de estos eventos. Responde SOLO con un JSON 
   }
 }
 
+// Quita las palabras de comando/relleno del mensaje para quedarse con el
+// término de búsqueda real (ej. "resumime el correo de Hostinger" -> "Hostinger").
+// Heurístico simple a propósito: la búsqueda de Gmail (q=) ya hace full-text
+// sobre remitente/asunto/cuerpo, no hace falta una query perfecta.
+function extractGmailQuery(message: string): string {
+  return message
+    .replace(
+      /\b(resum[ií](?:me|r)|lee(?:me)?|qu[eé] dice|borra(?:r)?|elimina(?:r)?|archiva(?:r)?|organiza(?:r)?|guarda(?:r)?)\b/gi,
+      " "
+    )
+    .replace(/\b(el|los|un|una|mi|mis|ese|esa|este|esta|correo|correos|de|del|email|e-?mail|gmail)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+interface GmailMatch {
+  status: "found" | "ambiguous" | "not_found";
+  message?: { id: string; from: string; subject: string; date: string; body: string };
+  candidates?: { id: string; from: string; subject: string }[];
+}
+
+/**
+ * Busca en Gmail real a partir del mensaje del usuario. Nunca actúa a ciegas
+ * sobre un correo: si la búsqueda da más de un resultado, devuelve "ambiguous"
+ * para que Jarvis pregunte cuál en vez de adivinar (mismo criterio que
+ * matchEventToDelete para Calendar).
+ */
+async function matchGmailMessage(message: string): Promise<GmailMatch> {
+  const query = extractGmailQuery(message);
+  if (!query) return { status: "not_found" };
+
+  const result = await searchGmail(query);
+  if (!result.ok || !result.items || result.items.length === 0) {
+    return { status: "not_found" };
+  }
+  if (result.items.length === 1) {
+    return { status: "found", message: result.items[0] };
+  }
+  return {
+    status: "ambiguous",
+    candidates: result.items.map((m) => ({ id: m.id, from: m.from, subject: m.subject })),
+  };
+}
+
 /**
  * Detecta si el mensaje del usuario necesita datos reales de Gmail/Calendar/Maps
  * y devuelve un bloque de contexto para inyectar en el system prompt, con
@@ -233,7 +291,45 @@ Quiere mover/cambiar la hora de uno de estos eventos. Responde SOLO con un JSON 
 export async function buildToolContext(message: string): Promise<string | null> {
   const blocks: string[] = [];
 
-  if (GMAIL_RE.test(message)) {
+  if (GMAIL_DELETE_RE.test(message) || GMAIL_ARCHIVE_RE.test(message)) {
+    const isDelete = GMAIL_DELETE_RE.test(message);
+    const match = await matchGmailMessage(message);
+    if (match.status === "not_found") {
+      blocks.push(
+        `[NO SE ENCONTRÓ EL CORREO] No se encontró ningún correo real que coincida con lo que pide el usuario. Pregúntale de quién es o el asunto — no inventes que lo ${isDelete ? "borraste" : "archivaste"}.`
+      );
+    } else if (match.status === "ambiguous") {
+      const list = (match.candidates || []).map((c) => `- "${c.subject}" (de ${c.from})`).join("\n");
+      blocks.push(
+        `[VARIOS CORREOS COINCIDEN, SE NECESITA ACLARACIÓN]\n${list}\nHay más de un correo real que podría ser. Pregúntale al usuario cuál exactamente (por remitente o asunto) — NO ${isDelete ? "borres" : "archives"} ninguno todavía, no asumas cuál.`
+      );
+    } else {
+      const msg = match.message!;
+      const result = isDelete ? await trashGmailMessage(msg.id) : await archiveGmailMessage(msg.id);
+      blocks.push(
+        result.ok
+          ? `[CORREO ${isDelete ? "BORRADO" : "ARCHIVADO"} REALMENTE EN GMAIL: "${msg.subject}" de ${msg.from}] Confirma al usuario con el asunto exacto.`
+          : `[NO SE PUDO ${isDelete ? "BORRAR" : "ARCHIVAR"} EL CORREO] Error real: "${result.error}". Informa este error tal cual — JAMÁS confirmes la acción si esto falló.`
+      );
+    }
+  } else if (GMAIL_READ_ONE_RE.test(message)) {
+    const match = await matchGmailMessage(message);
+    if (match.status === "not_found") {
+      blocks.push(
+        `[NO SE ENCONTRÓ EL CORREO] No se encontró ningún correo real que coincida. Pregúntale al usuario de quién es o el asunto exacto — no inventes contenido de un correo que no existe.`
+      );
+    } else if (match.status === "ambiguous") {
+      const list = (match.candidates || []).map((c) => `- "${c.subject}" (de ${c.from})`).join("\n");
+      blocks.push(
+        `[VARIOS CORREOS COINCIDEN, SE NECESITA ACLARACIÓN]\n${list}\nPregúntale al usuario cuál de estos quiere que resuma — no inventes cuál ni mezcles contenido de varios.`
+      );
+    } else {
+      const msg = match.message!;
+      blocks.push(
+        `[CONTENIDO REAL DEL CORREO — usar exclusivamente esto para el resumen, no inventar nada que no esté acá]\nDe: ${msg.from}\nAsunto: ${msg.subject}\nFecha: ${msg.date}\nCuerpo:\n${msg.body}`
+      );
+    }
+  } else if (GMAIL_RE.test(message)) {
     const result = await getGmailSummary();
     blocks.push(
       result.ok
