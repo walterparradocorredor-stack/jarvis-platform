@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import MemoryNeuralNetwork from "@/components/MemoryNeuralNetwork";
 import VoiceModule from "@/components/VoiceModule";
 import ImageUploadModule from "@/components/ImageUploadModule";
+import CameraCaptureModule from "@/components/CameraCaptureModule";
 import JarvisOrb from "@/components/JarvisOrb";
 import SlashCommandMenu, { SlashCommand } from "@/components/SlashCommandMenu";
 import MemoryManagerModal from "@/components/MemoryManagerModal";
@@ -428,6 +429,8 @@ const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(functi
                     onImageSelected={setSelectedImage}
                     selectedImage={selectedImage}
                   />
+
+                  <CameraCaptureModule onImageSelected={setSelectedImage} />
 
                   <VoiceModule
                     onInterimResult={(text) => setInputMessage(text)}

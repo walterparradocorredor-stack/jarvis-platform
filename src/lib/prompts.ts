@@ -69,13 +69,17 @@ export async function fetchGroundedFacts(): Promise<string> {
 
   if (googleMaps?.connected) {
     lines.push(
-      "- Google Maps/GPS: conectado (Geocoding API validada) — podés geocodificar direcciones reales, pero NO tenés tráfico en vivo ni cálculo de rutas turn-by-turn (esa función no está implementada todavía), no lo inventes."
+      "- Google Maps/GPS: conectado. Tenés la herramienta get_directions para traer distancia, duración y tráfico EN VIVO real entre dos lugares — invocala siempre que te pregunten por rutas o tráfico, nunca inventes esos datos."
     );
   } else {
     lines.push(
       `- Google Maps/GPS: NO conectado (${googleMaps?.detail || "tools-bridge no alcanzable"}) — no inventes rutas ni tiempos de tráfico.`
     );
   }
+
+  lines.push(
+    "- Google Calendar (escritura): tenés la herramienta create_calendar_event, que crea un evento REAL e inmediato en el Calendar del Dr. Walther — no es una simulación. Usala cuando te pidan agendar/programar algo, y confirmá con el usuario los datos (fecha, hora, título) antes o después de crearlo para que no haya sorpresas."
+  );
 
   return lines.join("\n");
 }
